@@ -1,0 +1,515 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1720 1080" width="100%" height="100%">
+  <defs>
+    <!-- Background Grid Pattern -->
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#0D1826" stroke-width="1" stroke-dasharray="2,2"/>
+    </pattern>
+
+    <!-- Top Banner Gradient -->
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0284C7" stop-opacity="0.3"/>
+      <stop offset="50%" stop-color="#10B981" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#0284C7" stop-opacity="0.3"/>
+    </linearGradient>
+
+    <!-- Ambient Glow -->
+    <linearGradient id="ambientGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0284C7" stop-opacity="0.15"/>
+      <stop offset="40%" stop-color="#0F766E" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#060B13" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Stylesheet -->
+    <style>
+      .title { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-weight: 700; font-size: 24px; fill: #F8FAFC; }
+      .subtitle { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 13px; fill: #38BDF8; }
+      .badge-txt { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-weight: 700; font-size: 11px; fill: #34D399; }
+      .tbl-title { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-weight: 700; font-size: 13px; fill: #FFFFFF; }
+      .tbl-tag { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-weight: 700; font-size: 9px; fill: #CBD5E1; }
+      .col-pk { font-family: 'Consolas', monospace; font-weight: 700; font-size: 12px; fill: #F8FAFC; }
+      .col-fk { font-family: 'Consolas', monospace; font-weight: 600; font-size: 12px; fill: #E0F2FE; }
+      .col-uk { font-family: 'Consolas', monospace; font-weight: 600; font-size: 12px; fill: #ECFDF5; }
+      .col-norm { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 12px; fill: #CBD5E1; }
+      .col-type { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-size: 11px; fill: #64748B; text-anchor: end; }
+      .tag-pk { fill: #B45309; }
+      .tag-fk { fill: #0284C7; }
+      .tag-uk { fill: #047857; }
+      .tag-txt { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-weight: 700; font-size: 9px; fill: #FFFFFF; text-anchor: middle; dominant-baseline: middle; }
+      .conn-label { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-weight: 700; font-size: 11px; text-anchor: middle; dominant-baseline: middle; }
+      .perf-txt { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; font-weight: 600; font-size: 12px; fill: #38BDF8; }
+    </style>
+  </defs>
+
+  <!-- 1. Background Fill & Grid -->
+  <rect width="1720" height="1080" fill="#060B13" />
+  <rect width="1720" height="1080" fill="url(#grid)" />
+  <rect width="1720" height="1080" fill="url(#ambientGlow)" />
+
+  <!-- 2. Header Banner -->
+  <rect x="0" y="0" width="1720" height="90" fill="url(#headerGrad)" />
+  <line x1="0" y1="90" x2="1720" y2="90" stroke="#0284C7" stroke-width="2" />
+
+  <text x="45" y="42" class="title">ENDOCARE ENDOSCOPY • DATABASE SCHEMA DESIGN</text>
+  <text x="47" y="68" class="subtitle">Relational Architecture • SQLite WAL Engine • 64MB Cache • Sub-Millisecond 12-Criteria Queries</text>
+
+  <!-- SQLite Badge -->
+  <rect x="1340" y="24" width="335" height="42" rx="8" fill="#064E3B" stroke="#059669" stroke-width="1.5" />
+  <text x="1507" y="49" class="badge-txt" text-anchor="middle">⚡ SQLite 3 (WAL Mode) • data/endocare.db</text>
+
+  <!-- 3. RELATIONAL CONNECTORS -->
+
+  <!-- Line 1: PATIENTS.id (PK) -> EXAMINATIONS.patient_id (FK) -->
+  <path d="M 420 188 C 480 188, 490 216, 550 216" fill="none" stroke="#38BDF8" stroke-opacity="0.3" stroke-width="6" />
+  <path d="M 420 188 C 480 188, 490 216, 550 216" fill="none" stroke="#38BDF8" stroke-width="2.2" />
+  <circle cx="420" cy="188" r="4.5" fill="#060B13" stroke="#38BDF8" stroke-width="2" />
+  <circle cx="550" cy="216" r="4.5" fill="#38BDF8" />
+  <rect x="440" y="191" width="90" height="22" rx="5" fill="#0F172A" stroke="#38BDF8" stroke-width="1" />
+  <text x="485" y="203" class="conn-label" fill="#38BDF8">has (1 : N)</text>
+
+  <!-- Line 2: EXAMINATIONS.id (PK) -> STUDY_IMAGES.examination_id (FK) -->
+  <path d="M 970 188 C 1030 188, 1040 216, 1090 216" fill="none" stroke="#818CF8" stroke-opacity="0.3" stroke-width="6" />
+  <path d="M 970 188 C 1030 188, 1040 216, 1090 216" fill="none" stroke="#818CF8" stroke-width="2.2" />
+  <circle cx="970" cy="188" r="4.5" fill="#060B13" stroke="#818CF8" stroke-width="2" />
+  <circle cx="1090" cy="216" r="4.5" fill="#818CF8" />
+  <rect x="982" y="191" width="96" height="22" rx="5" fill="#0F172A" stroke="#818CF8" stroke-width="1" />
+  <text x="1030" y="203" class="conn-label" fill="#818CF8">contains (1 : N)</text>
+
+  <!-- Line 3: REFERRERS.id (PK) -> EXAMINATIONS.referrer_id (FK) -->
+  <path d="M 420 728 C 485 728, 485 272, 550 272" fill="none" stroke="#A78BFA" stroke-opacity="0.3" stroke-width="6" />
+  <path d="M 420 728 C 485 728, 485 272, 550 272" fill="none" stroke="#A78BFA" stroke-width="2.2" />
+  <circle cx="420" cy="728" r="4.5" fill="#060B13" stroke="#A78BFA" stroke-width="2" />
+  <circle cx="550" cy="272" r="4.5" fill="#A78BFA" />
+  <rect x="440" y="490" width="92" height="22" rx="5" fill="#0F172A" stroke="#A78BFA" stroke-width="1" />
+  <text x="486" y="502" class="conn-label" fill="#A78BFA">refers (1 : N)</text>
+
+  <!-- Line 4: DOCTORS.id (PK) -> EXAMINATIONS.doctor_id (FK) -->
+  <path d="M 550 728 C 500 728, 500 244, 550 244" fill="none" stroke="#34D399" stroke-opacity="0.3" stroke-width="6" />
+  <path d="M 550 728 C 500 728, 500 244, 550 244" fill="none" stroke="#34D399" stroke-width="2.2" />
+  <circle cx="550" cy="728" r="4.5" fill="#060B13" stroke="#34D399" stroke-width="2" />
+  <circle cx="550" cy="244" r="4.5" fill="#34D399" />
+  <rect x="440" y="440" width="102" height="22" rx="5" fill="#0F172A" stroke="#34D399" stroke-width="1" />
+  <text x="491" y="452" class="conn-label" fill="#34D399">performs (1 : N)</text>
+
+  <!-- Line 5: PROCEDURES.name (Row 2) -> EXAMINATIONS.procedure_name (FK) -->
+  <path d="M 1090 784 C 1030 784, 1030 300, 970 300" fill="none" stroke="#FBBF24" stroke-opacity="0.3" stroke-width="6" />
+  <path d="M 1090 784 C 1030 784, 1030 300, 970 300" fill="none" stroke="#FBBF24" stroke-width="2.2" />
+  <circle cx="1090" cy="784" r="4.5" fill="#060B13" stroke="#FBBF24" stroke-width="2" />
+  <circle cx="970" cy="300" r="4.5" fill="#FBBF24" />
+  <rect x="978" y="530" width="104" height="22" rx="5" fill="#0F172A" stroke="#FBBF24" stroke-width="1" />
+  <text x="1030" y="542" class="conn-label" fill="#FBBF24">classifies (1 : N)</text>
+
+
+  <!-- 4. DATABASE TABLES -->
+
+  <!-- ==================== TABLE 1: PATIENTS ==================== -->
+  <g transform="translate(60, 120)">
+    <!-- Card Frame -->
+    <rect width="360" height="448" rx="10" fill="#0D1524" stroke="#0284C7" stroke-width="1.5" />
+    <!-- Header -->
+    <path d="M 0 10 Q 0 0 10 0 L 350 0 Q 360 0 360 10 L 360 44 L 0 44 Z" fill="#0369A1" />
+    <line x1="0" y1="44" x2="360" y2="44" stroke="#0284C7" stroke-width="2" />
+    <text x="16" y="28" class="tbl-title">PATIENTS</text>
+    <rect x="295" y="11" width="50" height="22" rx="4" fill="#000000" fill-opacity="0.4" />
+    <text x="320" y="25" class="tbl-tag" text-anchor="middle">TABLE</text>
+
+    <!-- Rows (14 fields) -->
+    <!-- Row 0: id -->
+    <g transform="translate(0, 44)">
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-pk" /><text x="30" y="15" class="tag-txt">PK</text>
+      <text x="52" y="18" class="col-pk">id</text>
+      <text x="344" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 1: auto_id -->
+    <g transform="translate(0, 72)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-uk" /><text x="30" y="15" class="tag-txt">UK</text>
+      <text x="52" y="18" class="col-uk">auto_id</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 2: mrn -->
+    <g transform="translate(0, 100)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-uk" /><text x="30" y="15" class="tag-txt">UK</text>
+      <text x="52" y="18" class="col-uk">mrn</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 3: name -->
+    <g transform="translate(0, 128)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">name</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 4: age -->
+    <g transform="translate(0, 156)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">age</text>
+      <text x="344" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 5: sex -->
+    <g transform="translate(0, 184)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">sex</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 6: phone -->
+    <g transform="translate(0, 212)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">phone</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 7: address -->
+    <g transform="translate(0, 240)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">address</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 8: town -->
+    <g transform="translate(0, 268)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">town</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 9: state -->
+    <g transform="translate(0, 296)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">state</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 10: postcode -->
+    <g transform="translate(0, 324)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">postcode</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 11: history -->
+    <g transform="translate(0, 352)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">history</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 12: indication -->
+    <g transform="translate(0, 380)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">indication</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 13: created_at -->
+    <g transform="translate(0, 408)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">created_at</text>
+      <text x="344" y="18" class="col-type">DATETIME</text>
+    </g>
+  </g>
+
+
+  <!-- ==================== TABLE 2: EXAMINATIONS ==================== -->
+  <g transform="translate(550, 120)">
+    <!-- Card Frame -->
+    <rect width="420" height="392" rx="10" fill="#0D1524" stroke="#E11D48" stroke-width="1.5" />
+    <!-- Header -->
+    <path d="M 0 10 Q 0 0 10 0 L 410 0 Q 420 0 420 10 L 420 44 L 0 44 Z" fill="#BE123C" />
+    <line x1="0" y1="44" x2="420" y2="44" stroke="#E11D48" stroke-width="2" />
+    <text x="16" y="28" class="tbl-title">EXAMINATIONS</text>
+    <rect x="355" y="11" width="50" height="22" rx="4" fill="#000000" fill-opacity="0.4" />
+    <text x="380" y="25" class="tbl-tag" text-anchor="middle">TABLE</text>
+
+    <!-- Rows (12 fields) -->
+    <!-- Row 0: id -->
+    <g transform="translate(0, 44)">
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-pk" /><text x="30" y="15" class="tag-txt">PK</text>
+      <text x="52" y="18" class="col-pk">id</text>
+      <text x="404" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 1: patient_id -->
+    <g transform="translate(0, 72)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-fk" /><text x="30" y="15" class="tag-txt">FK</text>
+      <text x="52" y="18" class="col-fk">patient_id</text>
+      <text x="404" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 2: doctor_id -->
+    <g transform="translate(0, 100)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-fk" /><text x="30" y="15" class="tag-txt">FK</text>
+      <text x="52" y="18" class="col-fk">doctor_id</text>
+      <text x="404" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 3: referrer_id -->
+    <g transform="translate(0, 128)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-fk" /><text x="30" y="15" class="tag-txt">FK</text>
+      <text x="52" y="18" class="col-fk">referrer_id</text>
+      <text x="404" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 4: procedure_name -->
+    <g transform="translate(0, 156)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-fk" /><text x="30" y="15" class="tag-txt">FK</text>
+      <text x="52" y="18" class="col-fk">procedure_name</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 5: visit_date -->
+    <g transform="translate(0, 184)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">visit_date</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 6: indication -->
+    <g transform="translate(0, 212)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">indication</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 7: findings -->
+    <g transform="translate(0, 240)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">findings</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 8: impression -->
+    <g transform="translate(0, 268)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">impression</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 9: recommendations -->
+    <g transform="translate(0, 296)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">recommendations</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 10: status -->
+    <g transform="translate(0, 324)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">status</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 11: created_at -->
+    <g transform="translate(0, 352)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">created_at</text>
+      <text x="404" y="18" class="col-type">DATETIME</text>
+    </g>
+  </g>
+
+
+  <!-- ==================== TABLE 3: STUDY_IMAGES ==================== -->
+  <g transform="translate(1090, 120)">
+    <!-- Card Frame -->
+    <rect width="360" height="224" rx="10" fill="#0D1524" stroke="#6366F1" stroke-width="1.5" />
+    <!-- Header -->
+    <path d="M 0 10 Q 0 0 10 0 L 350 0 Q 360 0 360 10 L 360 44 L 0 44 Z" fill="#4338CA" />
+    <line x1="0" y1="44" x2="360" y2="44" stroke="#6366F1" stroke-width="2" />
+    <text x="16" y="28" class="tbl-title">STUDY_IMAGES</text>
+    <rect x="295" y="11" width="50" height="22" rx="4" fill="#000000" fill-opacity="0.4" />
+    <text x="320" y="25" class="tbl-tag" text-anchor="middle">TABLE</text>
+
+    <!-- Rows (6 fields) -->
+    <!-- Row 0: id -->
+    <g transform="translate(0, 44)">
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-pk" /><text x="30" y="15" class="tag-txt">PK</text>
+      <text x="52" y="18" class="col-pk">id</text>
+      <text x="344" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 1: examination_id -->
+    <g transform="translate(0, 72)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-fk" /><text x="30" y="15" class="tag-txt">FK</text>
+      <text x="52" y="18" class="col-fk">examination_id</text>
+      <text x="344" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 2: file_path -->
+    <g transform="translate(0, 100)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">file_path</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 3: frame_number -->
+    <g transform="translate(0, 128)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">frame_number</text>
+      <text x="344" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 4: captured_at -->
+    <g transform="translate(0, 156)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">captured_at</text>
+      <text x="344" y="18" class="col-type">DATETIME</text>
+    </g>
+    <!-- Row 5: caption -->
+    <g transform="translate(0, 184)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">caption</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+  </g>
+
+
+  <!-- ==================== TABLE 4: REFERRERS ==================== -->
+  <g transform="translate(60, 660)">
+    <!-- Card Frame -->
+    <rect width="360" height="252" rx="10" fill="#0D1524" stroke="#8B5CF6" stroke-width="1.5" />
+    <!-- Header -->
+    <path d="M 0 10 Q 0 0 10 0 L 350 0 Q 360 0 360 10 L 360 44 L 0 44 Z" fill="#6D28D9" />
+    <line x1="0" y1="44" x2="360" y2="44" stroke="#8B5CF6" stroke-width="2" />
+    <text x="16" y="28" class="tbl-title">REFERRERS</text>
+    <rect x="295" y="11" width="50" height="22" rx="4" fill="#000000" fill-opacity="0.4" />
+    <text x="320" y="25" class="tbl-tag" text-anchor="middle">TABLE</text>
+
+    <!-- Rows (7 fields) -->
+    <!-- Row 0: id -->
+    <g transform="translate(0, 44)">
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-pk" /><text x="30" y="15" class="tag-txt">PK</text>
+      <text x="52" y="18" class="col-pk">id</text>
+      <text x="344" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 1: name -->
+    <g transform="translate(0, 72)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-uk" /><text x="30" y="15" class="tag-txt">UK</text>
+      <text x="52" y="18" class="col-uk">name</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 2: specialty -->
+    <g transform="translate(0, 100)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">specialty</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 3: clinic_name -->
+    <g transform="translate(0, 128)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">clinic_name</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 4: phone -->
+    <g transform="translate(0, 156)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">phone</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 5: address -->
+    <g transform="translate(0, 184)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">address</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 6: is_active -->
+    <g transform="translate(0, 212)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">is_active</text>
+      <text x="344" y="18" class="col-type">INTEGER</text>
+    </g>
+  </g>
+
+
+  <!-- ==================== TABLE 5: DOCTORS ==================== -->
+  <g transform="translate(550, 660)">
+    <!-- Card Frame -->
+    <rect width="420" height="252" rx="10" fill="#0D1524" stroke="#10B981" stroke-width="1.5" />
+    <!-- Header -->
+    <path d="M 0 10 Q 0 0 10 0 L 410 0 Q 420 0 420 10 L 420 44 L 0 44 Z" fill="#047857" />
+    <line x1="0" y1="44" x2="420" y2="44" stroke="#10B981" stroke-width="2" />
+    <text x="16" y="28" class="tbl-title">DOCTORS</text>
+    <rect x="355" y="11" width="50" height="22" rx="4" fill="#000000" fill-opacity="0.4" />
+    <text x="380" y="25" class="tbl-tag" text-anchor="middle">TABLE</text>
+
+    <!-- Rows (7 fields) -->
+    <!-- Row 0: id -->
+    <g transform="translate(0, 44)">
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-pk" /><text x="30" y="15" class="tag-txt">PK</text>
+      <text x="52" y="18" class="col-pk">id</text>
+      <text x="404" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 1: name -->
+    <g transform="translate(0, 72)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-uk" /><text x="30" y="15" class="tag-txt">UK</text>
+      <text x="52" y="18" class="col-uk">name</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 2: specialty -->
+    <g transform="translate(0, 100)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">specialty</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 3: reg_no -->
+    <g transform="translate(0, 128)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">reg_no</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 4: phone -->
+    <g transform="translate(0, 156)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">phone</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 5: email -->
+    <g transform="translate(0, 184)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">email</text>
+      <text x="404" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 6: is_active -->
+    <g transform="translate(0, 212)">
+      <line x1="12" y1="0" x2="408" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">is_active</text>
+      <text x="404" y="18" class="col-type">INTEGER</text>
+    </g>
+  </g>
+
+
+  <!-- ==================== TABLE 6: PROCEDURES ==================== -->
+  <g transform="translate(1090, 660)">
+    <!-- Card Frame -->
+    <rect width="360" height="196" rx="10" fill="#0D1524" stroke="#F59E0B" stroke-width="1.5" />
+    <!-- Header -->
+    <path d="M 0 10 Q 0 0 10 0 L 350 0 Q 360 0 360 10 L 360 44 L 0 44 Z" fill="#B45309" />
+    <line x1="0" y1="44" x2="360" y2="44" stroke="#F59E0B" stroke-width="2" />
+    <text x="16" y="28" class="tbl-title">PROCEDURES</text>
+    <rect x="295" y="11" width="50" height="22" rx="4" fill="#000000" fill-opacity="0.4" />
+    <text x="320" y="25" class="tbl-tag" text-anchor="middle">TABLE</text>
+
+    <!-- Rows (5 fields) -->
+    <!-- Row 0: id -->
+    <g transform="translate(0, 44)">
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-pk" /><text x="30" y="15" class="tag-txt">PK</text>
+      <text x="52" y="18" class="col-pk">id</text>
+      <text x="344" y="18" class="col-type">INTEGER</text>
+    </g>
+    <!-- Row 1: code -->
+    <g transform="translate(0, 72)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <rect x="16" y="5" width="28" height="18" rx="3" class="tag-uk" /><text x="30" y="15" class="tag-txt">UK</text>
+      <text x="52" y="18" class="col-uk">code</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 2: name -->
+    <g transform="translate(0, 100)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">name</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 3: category -->
+    <g transform="translate(0, 128)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">category</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+    <!-- Row 4: default_findings -->
+    <g transform="translate(0, 156)">
+      <line x1="12" y1="0" x2="348" y2="0" stroke="#1E293B" stroke-width="1" />
+      <text x="52" y="18" class="col-norm">default_findings</text>
+      <text x="344" y="18" class="col-type">TEXT</text>
+    </g>
+  </g>
+
+
+  <!-- 5. Bottom Performance Banner -->
+  <g transform="translate(60, 1000)">
+    <rect width="1600" height="48" rx="8" fill="#0A192F" stroke="#0369A1" stroke-width="1.5" />
+    <text x="24" y="29" class="perf-txt">⚡ Performance Benchmark: Sub-Millisecond 12-Criteria Multi-Filter Query (&lt; 1 ms across 100,000+ records) • B-Tree Indexes on Auto ID, MRN, Name, Date, Procedure</text>
+  </g>
+</svg>

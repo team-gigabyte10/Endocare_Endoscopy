@@ -70,6 +70,92 @@ The application will launch immediately as a native Windows desktop GUI applicat
 
 ---
 
+## 3. Database Schema Design
+
+![Endocare Database Schema Design](assets/database_schema.png)
+
+### Tables:
+
+```mermaid
+erDiagram
+    PATIENTS ||--o{ EXAMINATIONS : has
+    DOCTORS ||--o{ EXAMINATIONS : performs
+    REFERRERS ||--o{ EXAMINATIONS : refers
+    PROCEDURES ||--o{ EXAMINATIONS : classifies
+    EXAMINATIONS ||--o{ STUDY_IMAGES : contains
+
+    PATIENTS {
+        INTEGER id PK
+        TEXT auto_id UK
+        TEXT mrn UK
+        TEXT name
+        INTEGER age
+        TEXT sex
+        TEXT phone
+        TEXT address
+        TEXT town
+        TEXT state
+        TEXT postcode
+        TEXT history
+        TEXT indication
+        TEXT created_at
+    }
+
+    DOCTORS {
+        INTEGER id PK
+        TEXT name
+        TEXT specialty
+        TEXT reg_no
+        TEXT phone
+        TEXT email
+        INTEGER is_active
+    }
+
+    REFERRERS {
+        INTEGER id PK
+        TEXT name
+        TEXT specialty
+        TEXT clinic_name
+        TEXT phone
+        TEXT address
+        INTEGER is_active
+    }
+
+    PROCEDURES {
+        INTEGER id PK
+        TEXT code UK
+        TEXT name
+        TEXT category
+        TEXT default_findings
+    }
+
+    EXAMINATIONS {
+        INTEGER id PK
+        INTEGER patient_id FK
+        INTEGER doctor_id FK
+        INTEGER referrer_id FK
+        TEXT procedure_name
+        TEXT visit_date
+        TEXT indication
+        TEXT findings
+        TEXT impression
+        TEXT recommendations
+        TEXT status
+        TEXT created_at
+    }
+
+    STUDY_IMAGES {
+        INTEGER id PK
+        INTEGER examination_id FK
+        TEXT file_path
+        INTEGER frame_number
+        TEXT captured_at
+        TEXT caption
+    }
+```
+
+---
+
 ## 📁 Project Structure
 
 ```
