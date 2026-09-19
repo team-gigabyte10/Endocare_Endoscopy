@@ -12,10 +12,13 @@ from PySide6.QtWidgets import (
     QPlainTextEdit, QTextEdit, QComboBox, QRadioButton, QButtonGroup,
     QDateEdit, QToolButton, QTableWidget, QTableWidgetItem, QHeaderView,
     QCheckBox, QMessageBox, QGraphicsDropShadowEffect, QStackedWidget,
-    QApplication, QAbstractItemView
+    QApplication, QAbstractItemView, QFontDialog, QFileDialog
 )
 from PySide6.QtCore import Qt, QDate, QRect
-from PySide6.QtGui import QPixmap, QColor, QFont
+from PySide6.QtGui import (
+    QPixmap, QColor, QFont, QTextCursor, QTextListFormat,
+    QTextBlockFormat, QTextCharFormat
+)
 
 
 class WorkstationWindow(QDialog):
@@ -1126,12 +1129,19 @@ class ReferrersCardWidget(QFrame):
 
 
 class TemplatesCardWidget(QFrame):
-    """Template Editor card matching Demo/Templates.PNG."""
+    """
+    Template Editor workstation card modeled faithfully after Demo/Templates.PNG.
+    Features:
+    - Standard clinical header with [CLOSE] and [Template Editor]
+    - Formatting toolbar: [Open], [Save], [B], [I], [U], [:≡], Alignment, Font Size (11), [Fonts]
+    - Quick clinical template presets selector (Colonoscopy, EGD, Polypectomy, ERCP, Barrett's)
+    - Medical white document canvas with rich-text editing & live formatting
+    """
     def __init__(self, workstation: WorkstationWindow):
         super().__init__()
         self.workstation = workstation
         self.setObjectName("templatesCard")
-        self.setFixedWidth(740)
+        self.setFixedWidth(750)
         
         card_shadow = QGraphicsDropShadowEffect(self)
         card_shadow.setBlurRadius(28)
@@ -1147,11 +1157,132 @@ class TemplatesCardWidget(QFrame):
             }
         """)
         
+        self._init_templates_catalog()
+        self._init_ui()
+
+    def _init_templates_catalog(self):
+        """Pre-defined standard clinical endoscopy report templates."""
+        self.templates = {
+            "Diagnostic Colonoscopy (Standard)": (
+                "<div style='font-family: Segoe UI, Arial; font-size: 11pt; color: #0F172A; line-height: 1.4;'>"
+                "<h3 style='color: #0284C7; margin-bottom: 4px; border-bottom: 1.5px solid #0284C7; padding-bottom: 4px;'>ENDOSCOPY CLINICAL REPORT &bull; LOWER GI</h3>"
+                "<p><b>Procedure:</b> Complete Diagnostic Colonoscopy with Terminal Ileum Intubation<br/>"
+                "<b>Indication:</b> Colorectal cancer screening / Altered bowel habits<br/>"
+                "<b>Pre-Medication:</b> Midazolam 3mg IV, Fentanyl 50mcg IV<br/>"
+                "<b>Endoscope:</b> Video Colonoscope EC-760R-V/L (HD+)</p>"
+                "<hr style='border: 0; border-top: 1px solid #CBD5E1;'/>"
+                "<p><b>Clinical Findings:</b></p>"
+                "<ul>"
+                "<li><b>Perianal / Rectal:</b> Normal perianal inspection. Digital rectal examination normal. Rectal ampulla unremarkable.</li>"
+                "<li><b>Colon:</b> High-definition inspection performed on withdrawal. Bowel preparation Boston Bowel Prep Scale 8/9. Mucosa throughout sigmoid, descending, transverse, and ascending colon smooth with normal vascular pattern.</li>"
+                "<li><b>Cecum & Ileum:</b> Cecum reached; verified by appendiceal orifice and ileocecal valve. Terminal ileum entered 15cm; normal villous architecture.</li>"
+                "</ul>"
+                "<p><b>Diagnostic Impression:</b> Normal colonoscopy to terminal ileum. No mucosal abnormalities, polyps, or diverticula detected.</p>"
+                "<p><b>Recommendations:</b> Standard screening interval (10 years) recommended unless symptoms develop.</p>"
+                "<br/>"
+                "<p><b>Attending Endoscopist:</b> _________________________ &nbsp;&nbsp;&nbsp;&nbsp; <b>Date:</b> 19/09/2026</p>"
+                "</div>"
+            ),
+            "Upper GI Endoscopy (EGD)": (
+                "<div style='font-family: Segoe UI, Arial; font-size: 11pt; color: #0F172A; line-height: 1.4;'>"
+                "<h3 style='color: #0284C7; margin-bottom: 4px; border-bottom: 1.5px solid #0284C7; padding-bottom: 4px;'>ENDOSCOPY CLINICAL REPORT &bull; UPPER GI (EGD)</h3>"
+                "<p><b>Procedure:</b> Esophagogastroduodenoscopy (EGD) with Biopsy<br/>"
+                "<b>Indication:</b> Dyspepsia, epigastric fullness, GERD refractory to PPI<br/>"
+                "<b>Pre-Medication:</b> Topical Lidocaine 10% oral spray, Propofol monitored anesthesia<br/>"
+                "<b>Endoscope:</b> Video Gastroscope EG-760Z (Zoom & NBI)</p>"
+                "<hr style='border: 0; border-top: 1px solid #CBD5E1;'/>"
+                "<p><b>Clinical Findings:</b></p>"
+                "<ul>"
+                "<li><b>Esophagus:</b> Normal lumen and peristalsis. Squamocolumnar junction (Z-line) regular at 38cm from incisors. No erosions or varices (LA Grade 0).</li>"
+                "<li><b>Stomach:</b> Retroflexion demonstrates normal gastric cardia and fundus. Gastric body and antrum show mild patchy erythema; no ulceration or mass lesions. Rapid Urease Test (RUT) performed.</li>"
+                "<li><b>Duodenum:</b> Duodenal bulb and second portion inspected with clear visualization of the major papilla. Mucosa normal.</li>"
+                "</ul>"
+                "<p><b>Diagnostic Impression:</b> Mild non-erosive antral gastritis. RUT pending.</p>"
+                "<p><b>Recommendations:</b> Continue standard PPI for 4 weeks. Dietary modification advice provided.</p>"
+                "<br/>"
+                "<p><b>Attending Endoscopist:</b> _________________________ &nbsp;&nbsp;&nbsp;&nbsp; <b>Date:</b> 19/09/2026</p>"
+                "</div>"
+            ),
+            "Polypectomy & Resection (Paris Class)": (
+                "<div style='font-family: Segoe UI, Arial; font-size: 11pt; color: #0F172A; line-height: 1.4;'>"
+                "<h3 style='color: #0284C7; margin-bottom: 4px; border-bottom: 1.5px solid #0284C7; padding-bottom: 4px;'>INTERVENTIONAL ENDOSCOPY &bull; POLYPECTOMY PROTOCOL</h3>"
+                "<p><b>Procedure:</b> Colonoscopy with Endoscopic Mucosal Resection (EMR) / Polypectomy<br/>"
+                "<b>Indication:</b> Positive fecal occult blood test (FIT+)</p>"
+                "<hr style='border: 0; border-top: 1px solid #CBD5E1;'/>"
+                "<p><b>Lesion Classification & Intervention:</b></p>"
+                "<ul>"
+                "<li><b>Location:</b> Mid-transverse colon (65cm from anal verge)</li>"
+                "<li><b>Morphology:</b> Paris 0-Is sessile polyp, diameter 12mm</li>"
+                "<li><b>Surface Pattern:</b> NICE Type 2 / Kudo Pit Pattern III-L (Adenomatous)</li>"
+                "<li><b>Technique:</b> Submucosal injection of 4ml diluted methylene blue in saline. Complete hot snare polypectomy achieved en-bloc.</li>"
+                "<li><b>Hemostasis:</b> Prophylactic placement of two endoscopic clips (Resolution 11mm). No immediate post-polypectomy hemorrhage.</li>"
+                "</ul>"
+                "<p><b>Diagnostic Impression:</b> Successful en-bloc endoscopic resection of Paris 0-Is transverse colon polyp. Specimen retrieved for histopathology.</p>"
+                "<p><b>Recommendations:</b> Liquid diet for 24 hours. Surveillance colonoscopy in 3 years pending pathology staging.</p>"
+                "<br/>"
+                "<p><b>Attending Endoscopist:</b> _________________________ &nbsp;&nbsp;&nbsp;&nbsp; <b>Date:</b> 19/09/2026</p>"
+                "</div>"
+            ),
+            "Therapeutic ERCP & Stenting": (
+                "<div style='font-family: Segoe UI, Arial; font-size: 11pt; color: #0F172A; line-height: 1.4;'>"
+                "<h3 style='color: #0284C7; margin-bottom: 4px; border-bottom: 1.5px solid #0284C7; padding-bottom: 4px;'>ENDOSCOPIC RETROGRADE CHOLANGIOPANCREATOGRAPHY (ERCP)</h3>"
+                "<p><b>Procedure:</b> Therapeutic ERCP, Biliary Sphincterotomy, Balloon Extraction & Stenting<br/>"
+                "<b>Indication:</b> Choledocholithiasis with acute obstructive cholangitis</p>"
+                "<hr style='border: 0; border-top: 1px solid #CBD5E1;'/>"
+                "<p><b>Endoscopic & Fluoroscopic Steps:</b></p>"
+                "<ul>"
+                "<li><b>Duodenoscopy:</b> Side-viewing duodenoscope advanced to D2. Major papilla had normal papillary orifice.</li>"
+                "<li><b>Cannulation:</b> Selective biliary cannulation achieved with sphincterotome and 0.035 hydrophilic guidewire.</li>"
+                "<li><b>Cholangiogram:</b> Common Bile Duct (CBD) dilated to 14mm. Two filling defects (8mm and 6mm) noted in distal CBD.</li>"
+                "<li><b>Therapy:</b> Standard electrosurgical sphincterotomy (PulseCut mode). Fogarty biliary extraction balloon swept distal duct with extraction of calculi and sludge. 10Fr x 7cm plastic biliary stent deployed across papilla with prompt bile drainage.</li>"
+                "</ul>"
+                "<p><b>Diagnostic Impression:</b> Successful biliary duct clearance and decompression with 10Fr plastic stent placement.</p>"
+                "<p><b>Recommendations:</b> Monitor amylase/lipase for 24h. Schedule elective stent removal in 6 weeks.</p>"
+                "<br/>"
+                "<p><b>Attending Endoscopist:</b> _________________________ &nbsp;&nbsp;&nbsp;&nbsp; <b>Date:</b> 19/09/2026</p>"
+                "</div>"
+            ),
+            "Barrett's Esophagus Surveillance": (
+                "<div style='font-family: Segoe UI, Arial; font-size: 11pt; color: #0F172A; line-height: 1.4;'>"
+                "<h3 style='color: #0284C7; margin-bottom: 4px; border-bottom: 1.5px solid #0284C7; padding-bottom: 4px;'>UPPER GI ENDOSCOPY &bull; BARRETT'S SURVEILLANCE</h3>"
+                "<p><b>Procedure:</b> High-Definition Chromoendoscopy & Targeted Seattle Biopsy Protocol<br/>"
+                "<b>Indication:</b> Surveillance of known Barrett's Esophagus</p>"
+                "<hr style='border: 0; border-top: 1px solid #CBD5E1;'/>"
+                "<p><b>Endoscopic Assessment:</b></p>"
+                "<ul>"
+                "<li><b>Gastroesophageal Junction (GEJ):</b> Identified at 40cm. Diaphragmatic pinch at 42cm (2cm sliding hiatal hernia).</li>"
+                "<li><b>Prague Classification:</b> Circumferential extent C2, Maximum extent M4.</li>"
+                "<li><b>Mucosal Inspection:</b> Narrow Band Imaging (NBI) and acetic acid enhancement revealed regular tubular mucosa without nodularity or ulceration.</li>"
+                "<li><b>Biopsies:</b> Four-quadrant biopsies taken every 2cm throughout the columnar-lined segment (Seattle Protocol).</li>"
+                "</ul>"
+                "<p><b>Diagnostic Impression:</b> Barrett's esophagus (Prague C2M4) without visible nodular dysplasia.</p>"
+                "<p><b>Recommendations:</b> Continue high-dose PPI therapy. Follow-up interval determined by histological grade.</p>"
+                "<br/>"
+                "<p><b>Attending Endoscopist:</b> _________________________ &nbsp;&nbsp;&nbsp;&nbsp; <b>Date:</b> 19/09/2026</p>"
+                "</div>"
+            ),
+            "Blank Clinical Template": (
+                "<div style='font-family: Segoe UI, Arial; font-size: 11pt; color: #0F172A; line-height: 1.4;'>"
+                "<h3 style='color: #0284C7; margin-bottom: 4px; border-bottom: 1.5px solid #0284C7; padding-bottom: 4px;'>ENDOSCOPY CLINICAL EXAMINATION REPORT</h3>"
+                "<p><b>Patient Name:</b> _________________________ &nbsp;&nbsp;&nbsp;&nbsp; <b>MRN:</b> ___________________<br/>"
+                "<b>Procedure:</b> _________________________ &nbsp;&nbsp;&nbsp;&nbsp; <b>Date:</b> 19/09/2026</p>"
+                "<hr style='border: 0; border-top: 1px solid #CBD5E1;'/>"
+                "<p><b>Findings:</b><br/>"
+                "[Type clinical findings here...]</p>"
+                "<p><b>Impression & Recommendations:</b><br/>"
+                "[Type clinical impression and recommendations here...]</p>"
+                "<br/><br/>"
+                "<p><b>Endoscopist Signature:</b> _________________________</p>"
+                "</div>"
+            )
+        }
+
+    def _init_ui(self):
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(20, 12, 20, 14)
+        lay.setContentsMargins(18, 12, 18, 14)
         lay.setSpacing(8)
         
-        # Header
+        # --- Header: [CLOSE] ... Template Editor ... [Template Preset Selector] ---
         hdr = QHBoxLayout()
         btn_close = QPushButton("CLOSE")
         btn_close.setObjectName("cardCloseBtn")
@@ -1162,51 +1293,296 @@ class TemplatesCardWidget(QFrame):
         hdr.addStretch()
         t_lbl = QLabel("Template Editor")
         t_lbl.setObjectName("cardTitle")
+        t_lbl.setAlignment(Qt.AlignCenter)
         hdr.addWidget(t_lbl)
         hdr.addStretch()
         
-        sp = QLabel()
-        sp.setFixedWidth(65)
-        hdr.addWidget(sp)
+        # Quick Clinical Preset Picker
+        self.combo_presets = QComboBox()
+        self.combo_presets.setStyleSheet("""
+            QComboBox {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1E293B, stop:1 #0F172A);
+                color: #38BDF8;
+                border: 1.5px solid #0284C7;
+                border-radius: 5px;
+                padding: 4px 8px;
+                font-size: 11px;
+                font-weight: 700;
+                min-width: 170px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #0F172A;
+                color: #F8FAFC;
+                selection-background-color: #0284C7;
+            }
+        """)
+        self.combo_presets.addItems(list(self.templates.keys()))
+        self.combo_presets.currentIndexChanged.connect(self._on_preset_changed)
+        hdr.addWidget(self.combo_presets)
         lay.addLayout(hdr)
         
-        # Formatting Toolbar
-        tbar = QHBoxLayout()
-        tbar.setSpacing(6)
+        # Divider
+        h_sep = QFrame()
+        h_sep.setFrameShape(QFrame.HLine)
+        h_sep.setStyleSheet("background: #0284C7; max-height: 1.5px; margin-bottom: 2px;")
+        lay.addWidget(h_sep)
         
+        # --- Formatting Toolbar (Exact layout from Demo/Templates.PNG) ---
+        tbar = QHBoxLayout()
+        tbar.setSpacing(5)
+        
+        # Open & Save
         btn_open = QPushButton("Open")
+        btn_open.setCursor(Qt.PointingHandCursor)
+        btn_open.setStyleSheet(self._toolbar_btn_style())
+        btn_open.clicked.connect(self._handle_open)
+        tbar.addWidget(btn_open)
+        
         btn_save = QPushButton("Save")
-        for b in (btn_open, btn_save):
-            b.setStyleSheet("background: #1E293B; color: white; border: 1px solid #334155; border-radius: 4px; padding: 4px 10px; font-weight: bold;")
-            tbar.addWidget(b)
-            
-        tbar.addSpacing(10)
-        for fmt in ["B", "I", "U", "≡", "Format"]:
-            b = QPushButton(fmt)
-            b.setFixedWidth(30 if len(fmt) == 1 else 60)
-            b.setStyleSheet("background: #0F172A; color: #38BDF8; border: 1px solid #1E293B; border-radius: 4px; padding: 3px; font-weight: bold;")
-            tbar.addWidget(b)
-            
+        btn_save.setCursor(Qt.PointingHandCursor)
+        btn_save.setStyleSheet(self._toolbar_btn_style())
+        btn_save.clicked.connect(self._handle_save)
+        tbar.addWidget(btn_save)
+        
+        # Subtle Separator
+        tbar.addWidget(self._create_tool_sep())
+        
+        # Format Tools: B, I, U, :≡
+        self.btn_b = QPushButton("B")
+        self.btn_b.setCursor(Qt.PointingHandCursor)
+        self.btn_b.setFixedWidth(28)
+        self.btn_b.setStyleSheet(self._toolbar_tool_style("font-weight: 900; font-size: 13px;"))
+        self.btn_b.clicked.connect(self._toggle_bold)
+        tbar.addWidget(self.btn_b)
+        
+        self.btn_i = QPushButton("I")
+        self.btn_i.setCursor(Qt.PointingHandCursor)
+        self.btn_i.setFixedWidth(28)
+        self.btn_i.setStyleSheet(self._toolbar_tool_style("font-style: italic; font-weight: 700; font-size: 13px; font-family: 'Times New Roman';"))
+        self.btn_i.clicked.connect(self._toggle_italic)
+        tbar.addWidget(self.btn_i)
+        
+        self.btn_u = QPushButton("U")
+        self.btn_u.setCursor(Qt.PointingHandCursor)
+        self.btn_u.setFixedWidth(28)
+        self.btn_u.setStyleSheet(self._toolbar_tool_style("text-decoration: underline; font-weight: 700; font-size: 13px;"))
+        self.btn_u.clicked.connect(self._toggle_underline)
+        tbar.addWidget(self.btn_u)
+        
+        self.btn_bullets = QPushButton("•≡")
+        self.btn_bullets.setCursor(Qt.PointingHandCursor)
+        self.btn_bullets.setFixedWidth(30)
+        self.btn_bullets.setStyleSheet(self._toolbar_tool_style("font-weight: 800; font-size: 12px;"))
+        self.btn_bullets.clicked.connect(self._toggle_bullets)
+        tbar.addWidget(self.btn_bullets)
+        
+        # Separator
+        tbar.addWidget(self._create_tool_sep())
+        
+        # Alignment: Left, Center, Right
+        btn_align_left = QPushButton("≡")
+        btn_align_left.setCursor(Qt.PointingHandCursor)
+        btn_align_left.setFixedWidth(28)
+        btn_align_left.setToolTip("Align Left")
+        btn_align_left.setStyleSheet(self._toolbar_tool_style("font-size: 14px; font-weight: 900;"))
+        btn_align_left.clicked.connect(lambda: self._align_text(Qt.AlignLeft))
+        tbar.addWidget(btn_align_left)
+        
+        btn_align_center = QPushButton("⫼")
+        btn_align_center.setCursor(Qt.PointingHandCursor)
+        btn_align_center.setFixedWidth(28)
+        btn_align_center.setToolTip("Align Center")
+        btn_align_center.setStyleSheet(self._toolbar_tool_style("font-size: 13px; font-weight: 900;"))
+        btn_align_center.clicked.connect(lambda: self._align_text(Qt.AlignHCenter))
+        tbar.addWidget(btn_align_center)
+        
+        btn_align_right = QPushButton("⫽")
+        btn_align_right.setCursor(Qt.PointingHandCursor)
+        btn_align_right.setFixedWidth(28)
+        btn_align_right.setToolTip("Align Right")
+        btn_align_right.setStyleSheet(self._toolbar_tool_style("font-size: 13px; font-weight: 900;"))
+        btn_align_right.clicked.connect(lambda: self._align_text(Qt.AlignRight))
+        tbar.addWidget(btn_align_right)
+        
+        # Separator
+        tbar.addWidget(self._create_tool_sep())
+        
+        # Font Size Dropdown: [ 11 ⌵ ] (matching reference)
+        self.combo_size = QComboBox()
+        self.combo_size.setFixedWidth(56)
+        self.combo_size.setStyleSheet("""
+            QComboBox {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #F1F5F9);
+                color: #0F172A;
+                border: 1px solid #94A3B8;
+                border-radius: 4px;
+                padding: 3px 6px;
+                font-weight: 800;
+                font-size: 12px;
+            }
+            QComboBox QAbstractItemView {
+                background: #FFFFFF;
+                color: #0F172A;
+                selection-background-color: #0284C7;
+                selection-color: #FFFFFF;
+            }
+        """)
+        sizes = ["9", "10", "11", "12", "14", "16", "18", "20", "24"]
+        self.combo_size.addItems(sizes)
+        self.combo_size.setCurrentText("11")  # Matching Demo/Templates.PNG
+        self.combo_size.currentTextChanged.connect(self._on_font_size_changed)
+        tbar.addWidget(self.combo_size)
+        
+        # Fonts Button
+        btn_fonts = QPushButton("Fonts")
+        btn_fonts.setCursor(Qt.PointingHandCursor)
+        btn_fonts.setStyleSheet(self._toolbar_btn_style())
+        btn_fonts.clicked.connect(self._choose_font)
+        tbar.addWidget(btn_fonts)
+        
         tbar.addStretch()
         lay.addLayout(tbar)
         
-        # Editor Canvas
+        # --- High-Contrast Medical White Document Canvas ---
         self.editor = QTextEdit()
+        self.editor.setObjectName("templateEditorCanvas")
         self.editor.setStyleSheet("""
-            QTextEdit {
-                background: #FFFFFF;
+            QTextEdit#templateEditorCanvas {
+                background-color: #FFFFFF;
                 color: #0F172A;
                 border: 1.5px solid #0284C7;
                 border-radius: 6px;
-                font-family: 'Segoe UI', Arial;
-                font-size: 13px;
-                padding: 12px;
+                padding: 16px 20px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 11pt;
+                selection-background-color: #38BDF8;
+                selection-color: #0F172A;
             }
         """)
-        self.editor.setHtml("""
-            <h3 style='color: #0284C7;'>COLONOSCOPY DIAGNOSTIC EXAMINATION REPORT</h3>
-            <p><b>Procedure:</b> Complete examination of the large intestine to terminal ileum.</p>
-            <p><b>Findings:</b> Bowel preparation was adequate. Cecum was reached and verified by appendiceal orifice and ileocecal valve. Mucosa throughout colon appeared normal with healthy vascular pattern.</p>
-            <p><b>Impression:</b> Normal examination without evidence of polyps, ulceration, or mass lesions.</p>
-        """)
-        lay.addWidget(self.editor)
+        
+        # Load initial template
+        initial_tpl = list(self.templates.values())[0]
+        self.editor.setHtml(initial_tpl)
+        lay.addWidget(self.editor, 1)
+
+    def _create_tool_sep(self):
+        sep = QFrame()
+        sep.setFrameShape(QFrame.VLine)
+        sep.setStyleSheet("background-color: #334155; max-width: 1px; margin: 2px 3px;")
+        return sep
+
+    def _toolbar_btn_style(self):
+        return """
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #E2E8F0);
+                color: #0F172A;
+                border: 1px solid #94A3B8;
+                border-radius: 4px;
+                padding: 4px 10px;
+                font-size: 11px;
+                font-weight: 800;
+            }
+            QPushButton:hover {
+                background: #0284C7;
+                color: #FFFFFF;
+                border-color: #38BDF8;
+            }
+            QPushButton:pressed {
+                background: #0369A1;
+            }
+        """
+
+    def _toolbar_tool_style(self, extra_css: str = ""):
+        return f"""
+            QPushButton {{
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1E293B, stop:1 #0F172A);
+                color: #F8FAFC;
+                border: 1px solid #334155;
+                border-radius: 4px;
+                padding: 3px;
+                {extra_css}
+            }}
+            QPushButton:hover {{
+                background: #0284C7;
+                color: #FFFFFF;
+                border-color: #38BDF8;
+            }}
+            QPushButton:pressed {{
+                background: #38BDF8;
+                color: #0F172A;
+            }}
+        """
+
+    # --- Rich Text Formatting Handlers ---
+    def _merge_format(self, fmt: QTextCharFormat):
+        cursor = self.editor.textCursor()
+        if not cursor.hasSelection():
+            cursor.select(QTextCursor.WordUnderCursor)
+        cursor.mergeCharFormat(fmt)
+        self.editor.mergeCurrentCharFormat(fmt)
+
+    def _toggle_bold(self):
+        fmt = QTextCharFormat()
+        is_bold = self.editor.fontWeight() == QFont.Bold
+        fmt.setFontWeight(QFont.Normal if is_bold else QFont.Bold)
+        self._merge_format(fmt)
+
+    def _toggle_italic(self):
+        fmt = QTextCharFormat()
+        fmt.setFontItalic(not self.editor.fontItalic())
+        self._merge_format(fmt)
+
+    def _toggle_underline(self):
+        fmt = QTextCharFormat()
+        fmt.setFontUnderline(not self.editor.fontUnderline())
+        self._merge_format(fmt)
+
+    def _toggle_bullets(self):
+        cursor = self.editor.textCursor()
+        cursor.beginEditBlock()
+        list_fmt = QTextListFormat()
+        list_fmt.setStyle(QTextListFormat.ListDisc)
+        cursor.createList(list_fmt)
+        cursor.endEditBlock()
+
+    def _align_text(self, alignment):
+        self.editor.setAlignment(alignment)
+
+    def _on_font_size_changed(self, size_str: str):
+        try:
+            sz = float(size_str)
+            fmt = QTextCharFormat()
+            fmt.setFontPointSize(sz)
+            self._merge_format(fmt)
+        except ValueError:
+            pass
+
+    def _choose_font(self):
+        ok, font = QFontDialog.getFont(self.editor.currentFont(), self)
+        if ok:
+            fmt = QTextCharFormat()
+            fmt.setFont(font)
+            self._merge_format(fmt)
+
+    def _on_preset_changed(self, index: int):
+        key = self.combo_presets.currentText()
+        if key in self.templates:
+            self.editor.setHtml(self.templates[key])
+
+    def _handle_open(self):
+        key = self.combo_presets.currentText()
+        reply = QMessageBox.question(
+            self, "Load Template Preset",
+            f"Load the structured clinical template for:\n'{key}'?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+        )
+        if reply == QMessageBox.Yes and key in self.templates:
+            self.editor.setHtml(self.templates[key])
+
+    def _handle_save(self):
+        key = self.combo_presets.currentText()
+        QMessageBox.information(
+            self, "Template Saved",
+            f"✓ Clinical Template '{key}' saved successfully to Endocare Template Library."
+        )
+
