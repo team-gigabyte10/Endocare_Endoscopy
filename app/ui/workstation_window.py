@@ -539,21 +539,48 @@ class NewPatientCardWidget(QFrame):
         proc = self.combo_proc.currentText()
         doc = self.combo_doc.currentText()
         gender = "Male" if self.radio_male.isChecked() else "Female"
+        age = self.input_age.text().strip()
         
-        QMessageBox.information(
-            self, "Patient Registered",
-            f"✓ Patient Profile Created Successfully:\n\n"
-            f"• Name: {name}\n"
-            f"• MRN: {mrn}\n"
-            f"• Gender: {gender}  |  Age: {self.input_age.text() or 'N/A'}\n"
-            f"• Procedure: {proc}\n"
-            f"• Attending: {doc}\n\n"
-            f"Patient queued for endoscopy examination capture."
-        )
-        self.input_name.clear()
-        self.input_mrn.clear()
-        self.input_age.clear()
-        self.input_ind.clear()
+        patient_data = {
+            "name": name,
+            "mrn": mrn,
+            "procedure": proc,
+            "doctor": doc,
+            "gender": gender,
+            "age": age,
+            "bed": self.input_bed.text().strip(),
+            "indication": self.input_ind.text().strip(),
+            "visit_date": self.date_visit.date().toString("yyyy-MM-dd"),
+            "address": self.input_address.text().strip(),
+            "town": self.input_town.text().strip(),
+            "state": self.input_state.text().strip(),
+            "postcode": self.input_postcode.text().strip(),
+            "phone": self.input_phone.text().strip()
+        }
+        
+        from app.ui.dialogs.patient_success_dialog import PatientAddedSuccessDialog
+        dialog = PatientAddedSuccessDialog(patient_data, parent=self)
+        dialog.exec()
+        
+        action = dialog.selected_action
+        if action == PatientAddedSuccessDialog.ACTION_ADD_NEW:
+            # Clear fields and keep focus for adding another patient
+            self.input_name.clear()
+            self.input_mrn.clear()
+            self.input_age.clear()
+            self.input_ind.clear()
+            self.input_address.clear()
+            self.input_town.clear()
+            self.input_state.clear()
+            self.input_postcode.clear()
+            self.input_phone.clear()
+            self.input_name.setFocus()
+        elif action == PatientAddedSuccessDialog.ACTION_CAPTURE:
+            # Closes intake and returns directly to capture viewports
+            self.workstation.close_workstation()
+        elif action == PatientAddedSuccessDialog.ACTION_STANDBY:
+            # Leaves patient on standby and returns to launcher
+            self.workstation.close_workstation()
 
 
 class DoctorsCardWidget(QFrame):

@@ -511,20 +511,43 @@ class NewPatientDialog(QDialog):
         mrn = self.input_mrn.text().strip()
         procedure = self.combo_proc.currentText()
         doctor = self.combo_doc.currentText()
-        gender = "Male" if self.radio_male.isChecked() else "Female"
+        age = self.input_age.text().strip()
         
-        QMessageBox.information(
-            self, "Patient Registered Successfully",
-            f"✓ Patient Profile Created\n\n"
-            f"• Name: {name}\n"
-            f"• MRN: {mrn}\n"
-            f"• Gender: {gender}  |  Age: {self.input_age.text() or 'N/A'}\n"
-            f"• Procedure: {procedure}\n"
-            f"• Attending: {doctor}\n"
-            f"• Location / Bed: {self.input_bed.text()}\n\n"
-            f"Patient has been queued for immediate clinical imaging capture."
-        )
-        self.accept()
+        patient_data = {
+            "name": name,
+            "mrn": mrn,
+            "procedure": procedure,
+            "doctor": doctor,
+            "gender": gender,
+            "age": age,
+            "bed": self.input_bed.text().strip(),
+            "indication": self.input_ind.text().strip(),
+            "visit_date": self.date_visit.date().toString("yyyy-MM-dd"),
+            "address": self.input_address.text().strip(),
+            "town": self.input_town.text().strip(),
+            "state": self.input_state.text().strip(),
+            "postcode": self.input_postcode.text().strip(),
+            "phone": self.input_phone.text().strip()
+        }
+        
+        from app.ui.dialogs.patient_success_dialog import PatientAddedSuccessDialog
+        dialog = PatientAddedSuccessDialog(patient_data, parent=self)
+        dialog.exec()
+        
+        action = dialog.selected_action
+        if action == PatientAddedSuccessDialog.ACTION_ADD_NEW:
+            self.input_name.clear()
+            self.input_mrn.clear()
+            self.input_age.clear()
+            self.input_ind.clear()
+            self.input_address.clear()
+            self.input_town.clear()
+            self.input_state.clear()
+            self.input_postcode.clear()
+            self.input_phone.clear()
+            self.input_name.setFocus()
+        elif action in (PatientAddedSuccessDialog.ACTION_CAPTURE, PatientAddedSuccessDialog.ACTION_STANDBY):
+            self.accept()
 
     def _open_doctors(self):
         dlg = DoctorsDialog(self)
