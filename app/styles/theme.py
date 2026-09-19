@@ -941,4 +941,120 @@ def get_stylesheet() -> str:
         background: #334155;
         color: #F8FAFC;
     }}
+    
+    /* ==========================================================================
+       DOCTORS ARCHIVE WORKSTATION STYLES
+       ========================================================================== */
+       
+    QFrame#doctorsWorkstationRoot {{
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #070E16, stop:0.5 #0B1622, stop:1 #050A10);
+    }}
+    
+    QFrame#doctorsCard {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0E2436, stop:0.4 #091A28, stop:1 #05101A);
+        border: 2px solid #0284C7;
+        border-radius: 12px;
+    }}
+    
+    /* Doctors Directory List */
+    QListWidget#doctorsListWidget {{
+        background-color: #0A131C;
+        border: 1.5px solid #1E293B;
+        border-radius: 6px;
+        color: #F8FAFC;
+        font-size: 13px;
+        padding: 4px;
+    }}
+    
+    QListWidget#doctorsListWidget::item {{
+        padding: 8px 10px;
+        border-radius: 4px;
+        margin-bottom: 2px;
+    }}
+    
+    QListWidget#doctorsListWidget::item:hover {{
+        background-color: #1E293B;
+        color: #38BDF8;
+    }}
+    
+    QListWidget#doctorsListWidget::item:selected {{
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284C7, stop:1 #0369A1);
+        color: #FFFFFF;
+        font-weight: 700;
+        border-left: 3px solid #38BDF8;
+    }}
+    
+    /* Doctors Action Buttons */
+    QPushButton#btnDocAddNew {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #F1F5F9);
+        color: #0F172A;
+        border: 1.5px solid #94A3B8;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 800;
+        padding: 7px 14px;
+    }}
+    QPushButton#btnDocAddNew:hover {{
+        background: #0284C7;
+        color: #FFFFFF;
+        border-color: #38BDF8;
+    }}
+    
+    QPushButton#btnDocUpdate {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #E0F2FE);
+        color: #0369A1;
+        border: 1.5px solid #0284C7;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 800;
+        padding: 7px 14px;
+    }}
+    QPushButton#btnDocUpdate:hover {{
+        background: #0284C7;
+        color: #FFFFFF;
+    }}
+    
+    QPushButton#btnDocEdit {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #F1F5F9);
+        color: #0F172A;
+        border: 1.5px solid #94A3B8;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 800;
+        padding: 7px 14px;
+    }}
+    QPushButton#btnDocEdit:hover {{
+        background: #334155;
+        color: #FFFFFF;
+    }}
+    
+    QPushButton#btnDocDelete {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #FEE2E2);
+        color: #DC2626;
+        border: 1.5px solid #DC2626;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 800;
+        padding: 7px 14px;
+    }}
+    QPushButton#btnDocDelete:hover {{
+        background: #DC2626;
+        color: #FFFFFF;
+    }}
+    
+    /* Navigation Arrows */
+    QPushButton.docNavBtn {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1E293B, stop:1 #0F172A);
+        color: #10B981;
+        border: 1.5px solid #10B981;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 900;
+        padding: 4px 10px;
+        min-width: 32px;
+    }}
+    QPushButton.docNavBtn:hover {{
+        background: #10B981;
+        color: #FFFFFF;
+    }}
     """
