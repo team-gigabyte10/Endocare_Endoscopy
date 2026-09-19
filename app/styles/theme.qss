@@ -1,0 +1,312 @@
+/*
+ * Endocare - Medical Endoscopy Management Application Theme
+ * Windows Desktop Commercial Healthcare Aesthetic
+ */
+
+QMainWindow, QWidget#centralWidget {
+    background-color: #F1F5F9;
+    font-family: 'Segoe UI', 'Inter', -apple-system, sans-serif;
+    color: #0F172A;
+}
+
+/* Header Bar */
+QFrame#headerBar {
+    background-color: #0B192C;
+    border-bottom: 2px solid #0369A1;
+    min-height: 64px;
+    max-height: 64px;
+}
+
+QLabel#appTitle {
+    color: #FFFFFF;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+QLabel#appSubtitle {
+    color: #7DD3FC;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+QLabel#headerClock {
+    color: #E2E8F0;
+    font-size: 12px;
+    font-weight: 500;
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    padding: 5px 12px;
+}
+
+QFrame#userBadge {
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    padding: 3px 10px;
+}
+
+QLabel#userName {
+    color: #FFFFFF;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QLabel#userRole {
+    color: #93C5FD;
+    font-size: 10px;
+}
+
+/* Header Action & Window Controls */
+QToolButton#headerButton {
+    background-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    padding: 5px;
+    color: #E2E8F0;
+}
+
+QToolButton#headerButton:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.35);
+}
+
+QToolButton#winCloseBtn {
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    color: #CBD5E1;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+QToolButton#winCloseBtn:hover {
+    background-color: #DC2626;
+    color: #FFFFFF;
+}
+
+QToolButton#winControlBtn {
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 10px;
+    color: #CBD5E1;
+    font-size: 12px;
+}
+
+QToolButton#winControlBtn:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: #FFFFFF;
+}
+
+/* Welcome Banner */
+QFrame#welcomeBanner {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #FFFFFF, stop:1 #F0F9FF);
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 18px 24px;
+}
+
+QLabel#welcomeTitle {
+    font-size: 26px;
+    font-weight: 700;
+    color: #0F172A;
+    margin-bottom: 2px;
+}
+
+QLabel#welcomeSubtitle {
+    font-size: 14px;
+    font-weight: 400;
+    color: #475569;
+}
+
+/* Facility Quick Stat Badges */
+QFrame#statBadge {
+    background-color: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 6px 14px;
+}
+
+QLabel#statVal {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0369A1;
+}
+
+QLabel#statLbl {
+    font-size: 10px;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Capture Card Library Dropdown Button */
+QPushButton#captureCardDropdownBtn {
+    background-color: #FFFFFF;
+    color: #0B192C;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1.5px solid #0284C7;
+    border-radius: 8px;
+    padding: 8px 18px;
+    text-align: left;
+}
+
+QPushButton#captureCardDropdownBtn:hover {
+    background-color: #F0F9FF;
+    border-color: #0369A1;
+}
+
+QPushButton#captureCardDropdownBtn:pressed {
+    background-color: #E0F2FE;
+}
+
+/* Dropdown Menus */
+QMenu {
+    background-color: #FFFFFF;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    padding: 6px;
+    font-size: 13px;
+}
+
+QMenu::item {
+    padding: 8px 24px 8px 12px;
+    border-radius: 5px;
+    color: #0F172A;
+    font-weight: 500;
+}
+
+QMenu::item:selected {
+    background-color: #F0F9FF;
+    color: #0369A1;
+}
+
+QMenu::separator {
+    height: 1px;
+    background: #E2E8F0;
+    margin: 4px 6px;
+}
+
+/* Dashboard Cards */
+QFrame#dashboardCard {
+    background-color: #FFFFFF;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+QFrame#dashboardCard:hover {
+    background-color: #F8FAFC;
+    border-color: #0284C7;
+}
+
+QLabel#cardTitle {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0F172A;
+}
+
+QLabel#cardSubtitle {
+    font-size: 13px;
+    color: #475569;
+    font-weight: 400;
+}
+
+QFrame#cardIconContainer {
+    background-color: #E0F2FE;
+    border-radius: 12px;
+    min-width: 52px;
+    max-width: 52px;
+    min-height: 52px;
+    max-height: 52px;
+}
+
+/* Common Buttons */
+QPushButton.primaryButton {
+    background-color: #0284C7;
+    color: #FFFFFF;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 9px 20px;
+    border: none;
+}
+
+QPushButton.primaryButton:hover {
+    background-color: #0369A1;
+}
+
+QPushButton.secondaryButton {
+    background-color: #FFFFFF;
+    color: #0F172A;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    padding: 8px 18px;
+}
+
+QPushButton.secondaryButton:hover {
+    background-color: #F1F5F9;
+    border-color: #0284C7;
+}
+
+/* Form Inputs */
+QLineEdit, QComboBox, QSpinBox, QDateEdit {
+    background-color: #FFFFFF;
+    border: 1.5px solid #CBD5E1;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: #0F172A;
+}
+
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDateEdit:focus {
+    border-color: #0284C7;
+    background-color: #FAFCFE;
+}
+
+/* Tables */
+QTableWidget {
+    background-color: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    gridline-color: #F1F5F9;
+    font-size: 13px;
+}
+
+QHeaderView::section {
+    background-color: #F8FAFC;
+    color: #475569;
+    font-weight: 600;
+    font-size: 12px;
+    border: none;
+    border-bottom: 1px solid #CBD5E1;
+    padding: 8px;
+}
+
+/* Dialog Windows */
+QDialog {
+    background-color: #F1F5F9;
+}
+
+/* Status Footer Bar */
+QFrame#statusBar {
+    background-color: #FFFFFF;
+    border-top: 1px solid #E2E8F0;
+    min-height: 32px;
+    max-height: 32px;
+    padding: 0 16px;
+}
+
+QLabel#statusText {
+    color: #475569;
+    font-size: 11px;
+}
