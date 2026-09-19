@@ -541,28 +541,35 @@ class NewPatientCardWidget(QFrame):
             self.input_name.setFocus()
             return
             
-        mrn = self.input_mrn.text().strip() or "MRN-AUTOGEN"
+        from app.services.database import DatabaseService
+        db = DatabaseService.get_instance()
+        
+        mrn = self.input_mrn.text().strip() or db.get_next_mrn()
         proc = self.combo_proc.currentText()
         doc = self.combo_doc.currentText()
+        ref = self.combo_ref.currentText() if hasattr(self, "combo_ref") else ""
         gender = "Male" if self.radio_male.isChecked() else "Female"
         age = self.input_age.text().strip()
         
         patient_data = {
             "name": name,
             "mrn": mrn,
-            "procedure": proc,
-            "doctor": doc,
-            "gender": gender,
-            "age": age,
-            "bed": self.input_bed.text().strip(),
+            "procedure_name": proc,
+            "doctor_name": doc,
+            "referrer_name": ref,
+            "sex": gender,
+            "age": int(age) if age.isdigit() else 0,
             "indication": self.input_ind.text().strip(),
-            "visit_date": self.date_visit.date().toString("yyyy-MM-dd"),
+            "visit_date": self.date_visit.date().toString("dd-MM-yyyy"),
             "address": self.input_address.text().strip(),
             "town": self.input_town.text().strip(),
             "state": self.input_state.text().strip(),
             "postcode": self.input_postcode.text().strip(),
             "phone": self.input_phone.text().strip()
         }
+        
+        auto_id = db.add_patient(patient_data)
+        patient_data["auto_id"] = auto_id
         
         from app.ui.dialogs.patient_success_dialog import PatientAddedSuccessDialog
         dialog = PatientAddedSuccessDialog(patient_data, parent=self)

@@ -204,52 +204,11 @@ class ArchiveDialog(QDialog):
         self._init_ui()
 
     def _init_data(self):
-        # Sample realistic clinical database records
-        self.records = [
-            {
-                "auto_id": "00000001", "name": "Adnan Shefat", "age": "18", "sex": "Male",
-                "date": "15-07-2026", "procedure": "COLONOSCOPY", "doctor": "Dr. Sarah Jenkins",
-                "referrer": "Metropolitan Clinic", "mrn": "ENDO-2026-0042",
-                "address": "House 14, Road 5, Block B, Dhanmondi", "town": "Dhaka", "state": "Central",
-                "postcode": "1209", "phone": "01457856554", "indication": "Chronic recurrent abdominal discomfort"
-            },
-            {
-                "auto_id": "00000002", "name": "Maria Gonzales", "age": "45", "sex": "Female",
-                "date": "17-08-2026", "procedure": "UPPER GI ENDOSCOPY", "doctor": "Dr. Michael Chang",
-                "referrer": "Westside Family Practice", "mrn": "ENDO-2026-0811",
-                "address": "742 Evergreen Terrace", "town": "Springfield", "state": "IL",
-                "postcode": "62704", "phone": "+1 (555) 234-8901", "indication": "Grade B Reflux Esophagitis (LA Class)"
-            },
-            {
-                "auto_id": "00000003", "name": "Alexander Hayes", "age": "58", "sex": "Male",
-                "date": "18-09-2026", "procedure": "COLONOSCOPY", "doctor": "Dr. Sarah Jenkins",
-                "referrer": "Direct Clinical Intake", "mrn": "ENDO-2026-0814",
-                "address": "404 North Medical Plaza, Suite 300", "town": "Chicago", "state": "IL",
-                "postcode": "60611", "phone": "+1 (555) 789-0123", "indication": "Tubular Adenoma (Paris 0-Is) resected"
-            },
-            {
-                "auto_id": "00000004", "name": "Robert Chen", "age": "62", "sex": "Male",
-                "date": "16-09-2026", "procedure": "ERCP", "doctor": "Dr. Elena Rostova",
-                "referrer": "St. Jude Internal Medicine", "mrn": "ENDO-2026-0809",
-                "address": "1208 Bayfront Promenade", "town": "San Francisco", "state": "CA",
-                "postcode": "94107", "phone": "+1 (555) 456-7890", "indication": "Choledocholithiasis extracted, stent placed"
-            },
-            {
-                "auto_id": "00000005", "name": "Emma Watson", "age": "34", "sex": "Female",
-                "date": "15-09-2026", "procedure": "COLONOSCOPY", "doctor": "Dr. Sarah Jenkins",
-                "referrer": "Emergency Department", "mrn": "ENDO-2026-0803",
-                "address": "88 Crescent Boulevard", "town": "Boston", "state": "MA",
-                "postcode": "02115", "phone": "+1 (555) 890-1234", "indication": "Normal terminal ileum & colon mucosa"
-            },
-            {
-                "auto_id": "00000006", "name": "David Miller", "age": "50", "sex": "Male",
-                "date": "14-09-2026", "procedure": "UPPER GI ENDOSCOPY", "doctor": "Dr. Michael Chang",
-                "referrer": "Direct Clinical Intake", "mrn": "ENDO-2026-0798",
-                "address": "15 Beacon Hill Lane", "town": "Seattle", "state": "WA",
-                "postcode": "98101", "phone": "+1 (555) 345-6789", "indication": "Gastric Ulcer (Forrest III), Biopsy sent"
-            }
-        ]
+        from app.services.database import DatabaseService
+        self.db = DatabaseService.get_instance()
+        self.records = self.db.get_patients(limit=100)
         self._current_filtered = list(self.records)
+
 
     def _init_ui(self):
         root = QFrame(self)
@@ -621,15 +580,15 @@ class ArchiveDialog(QDialog):
     def _populate_table(self, data_list):
         self.table.setRowCount(len(data_list))
         for r_idx, rec in enumerate(data_list):
-            self.table.setItem(r_idx, 0, QTableWidgetItem(rec.get("auto_id", "")))
-            self.table.setItem(r_idx, 1, QTableWidgetItem(rec.get("name", "")))
-            self.table.setItem(r_idx, 2, QTableWidgetItem(rec.get("age", "")))
-            self.table.setItem(r_idx, 3, QTableWidgetItem(rec.get("sex", "")))
-            self.table.setItem(r_idx, 4, QTableWidgetItem(rec.get("date", "")))
-            self.table.setItem(r_idx, 5, QTableWidgetItem(rec.get("procedure", "")))
-            self.table.setItem(r_idx, 6, QTableWidgetItem(rec.get("doctor", "")))
-            self.table.setItem(r_idx, 7, QTableWidgetItem(rec.get("referrer", "")))
-            self.table.setItem(r_idx, 8, QTableWidgetItem(rec.get("mrn", "")))
+            self.table.setItem(r_idx, 0, QTableWidgetItem(str(rec.get("auto_id", ""))))
+            self.table.setItem(r_idx, 1, QTableWidgetItem(str(rec.get("name", ""))))
+            self.table.setItem(r_idx, 2, QTableWidgetItem(str(rec.get("age", ""))))
+            self.table.setItem(r_idx, 3, QTableWidgetItem(str(rec.get("sex", ""))))
+            self.table.setItem(r_idx, 4, QTableWidgetItem(str(rec.get("visit_date") or rec.get("date", ""))))
+            self.table.setItem(r_idx, 5, QTableWidgetItem(str(rec.get("procedure_name") or rec.get("procedure", ""))))
+            self.table.setItem(r_idx, 6, QTableWidgetItem(str(rec.get("doctor_name") or rec.get("doctor", ""))))
+            self.table.setItem(r_idx, 7, QTableWidgetItem(str(rec.get("referrer_name") or rec.get("referrer", ""))))
+            self.table.setItem(r_idx, 8, QTableWidgetItem(str(rec.get("mrn", ""))))
         
         self.lbl_counter.setText(f"Showing Last {len(data_list)} Patient(s)")
         
@@ -665,17 +624,22 @@ class ArchiveDialog(QDialog):
             return
             
         rec = self._current_filtered[row]
-        rec["address"] = self.txt_address.text().strip()
-        rec["town"] = self.input_town.text().strip()
-        rec["state"] = self.input_state.text().strip()
-        rec["postcode"] = self.input_post.text().strip()
-        rec["phone"] = self.input_phone.text().strip()
+        auto_id = rec.get("auto_id")
+        update_data = {
+            "address": self.txt_address.text().strip(),
+            "town": self.input_town.text().strip(),
+            "state": self.input_state.text().strip(),
+            "postcode": self.input_post.text().strip(),
+            "phone": self.input_phone.text().strip()
+        }
+        
+        self.db.update_patient(auto_id, update_data)
+        rec.update(update_data)
         
         QMessageBox.information(
             self, "Patient Record Updated",
-            f"✓ Contact & Address for {rec.get('name')} [{rec.get('mrn')}] updated successfully."
+            f"✓ Contact & Address for {rec.get('name')} [{rec.get('mrn')}] saved permanently to database."
         )
-
 
     def _handle_delete_patient(self):
         row = self.table.currentRow()
@@ -684,99 +648,70 @@ class ArchiveDialog(QDialog):
             return
             
         rec = self._current_filtered[row]
+        auto_id = rec.get("auto_id")
         reply = QMessageBox.question(
             self, "Confirm Patient Deletion",
-            f"Are you sure you want to archive / delete {rec.get('name')} [{rec.get('mrn')}]?",
+            f"Are you sure you want to permanently delete {rec.get('name')} [{rec.get('mrn')}]?",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
         if reply == QMessageBox.Yes:
-            if rec in self.records:
-                self.records.remove(rec)
+            self.db.delete_patient(auto_id)
             self._current_filtered.remove(rec)
             self._populate_table(self._current_filtered)
 
     def _handle_search(self):
-        results = []
-        for rec in self.records:
-            match = True
+        criteria = {
+            "aid_enabled": self.chk_aid.isChecked(),
+            "aid_min": self.input_aid_min.text().strip(),
+            "aid_max": self.input_aid_max.text().strip(),
             
-            # 1. A. ID
-            if self.chk_aid.isChecked():
-                try:
-                    aid = int(rec.get("auto_id", "0"))
-                    min_aid = int(self.input_aid_min.text())
-                    max_aid = int(self.input_aid_max.text())
-                    if not (min_aid <= aid <= max_aid):
-                        match = False
-                except ValueError:
-                    pass
-                    
-            # 2. Age
-            if match and self.chk_age.isChecked():
-                try:
-                    age = int(rec.get("age", "0"))
-                    min_age = int(self.input_age_min.text())
-                    max_age = int(self.input_age_max.text())
-                    if not (min_age <= age <= max_age):
-                        match = False
-                except ValueError:
-                    pass
-                    
-            # 3. Sex
-            if match and self.chk_sex.isChecked():
-                chosen_sex = "Male" if self.radio_s_male.isChecked() else "Female"
-                if rec.get("sex", "").lower() != chosen_sex.lower():
-                    match = False
-                    
-            # 4. MRN
-            if match and self.chk_mrn.isChecked():
-                term = self.input_s_mrn.text().strip().lower()
-                if term and term not in rec.get("mrn", "").lower():
-                    match = False
-                    
-            # 5. Name
-            if match and self.chk_name.isChecked():
-                term = self.input_s_name.text().strip().lower()
-                if term and term not in rec.get("name", "").lower():
-                    match = False
-                    
-            # 6. Indication
-            if match and self.chk_ind.isChecked():
-                term = self.input_s_ind.text().strip().lower()
-                if term and term not in rec.get("indication", "").lower():
-                    match = False
-                    
-            # 7. Procedure
-            if match and self.chk_proc.isChecked():
-                proc = self.combo_s_proc.currentText().strip().lower()
-                if proc not in rec.get("procedure", "").lower():
-                    match = False
-                    
-            # 8. Doctor
-            if match and self.chk_doc.isChecked():
-                doc = self.combo_s_doc.currentText().strip().lower()
-                if doc not in rec.get("doctor", "").lower():
-                    match = False
-                    
-            # 9. Referrer
-            if match and self.chk_ref.isChecked():
-                ref = self.combo_s_ref.currentText().strip().lower()
-                if ref not in rec.get("referrer", "").lower():
-                    match = False
-                    
-            if match:
-                results.append(rec)
-                
-        self._current_filtered = results
-        self._populate_table(results)
+            "age_enabled": self.chk_age.isChecked(),
+            "age_min": self.input_age_min.text().strip(),
+            "age_max": self.input_age_max.text().strip(),
+            
+            "date_enabled": self.chk_date.isChecked(),
+            "date_min": self.input_date_min.date().toString("dd-MM-yyyy"),
+            "date_max": self.input_date_max.date().toString("dd-MM-yyyy"),
+            
+            "sex_enabled": self.chk_sex.isChecked(),
+            "sex": "Male" if self.radio_s_male.isChecked() else "Female",
+            
+            "mrn_enabled": self.chk_mrn.isChecked(),
+            "mrn": self.input_s_mrn.text().strip(),
+            
+            "name_enabled": self.chk_name.isChecked(),
+            "name": self.input_s_name.text().strip(),
+            
+            "ind_enabled": self.chk_ind.isChecked(),
+            "indication": self.input_s_ind.text().strip(),
+            
+            "rep_enabled": self.chk_rep.isChecked(),
+            "report": self.input_s_rep.text().strip(),
+            
+            "proc_enabled": self.chk_proc.isChecked(),
+            "procedure": self.combo_s_proc.currentText().strip(),
+            
+            "hist_enabled": self.chk_hist.isChecked(),
+            "history": self.combo_s_hist.currentText().strip(),
+            
+            "doc_enabled": self.chk_doc.isChecked(),
+            "doctor": self.combo_s_doc.currentText().strip(),
+            
+            "ref_enabled": self.chk_ref.isChecked(),
+            "referrer": self.combo_s_ref.currentText().strip(),
+        }
+        
+        self._current_filtered = self.db.get_patients(limit=100, criteria=criteria)
+        self._populate_table(self._current_filtered)
 
     def _handle_reset(self):
         for chk in [self.chk_aid, self.chk_age, self.chk_date, self.chk_sex,
                     self.chk_mrn, self.chk_name, self.chk_ind, self.chk_rep,
                     self.chk_proc, self.chk_hist, self.chk_doc, self.chk_ref]:
             chk.setChecked(False)
-        self._current_filtered = list(self.records)
-        self._populate_table(self.records)
+        self._current_filtered = self.db.get_patients(limit=100)
+        self._populate_table(self._current_filtered)
+
 
     def _open_new_patient(self):
         from app.ui.dialogs.new_patient_dialog import NewPatientDialog
