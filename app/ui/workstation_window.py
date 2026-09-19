@@ -231,6 +231,12 @@ class WorkstationWindow(QDialog):
             "templates": (4, self.card_templates),
         }
         
+        if module_name == "archive":
+            from app.ui.dialogs.archive_dialog import ArchiveDialog
+            dlg = ArchiveDialog(parent=self)
+            dlg.exec()
+            return
+
         if module_name not in module_map:
             module_name = "new_patient"
             

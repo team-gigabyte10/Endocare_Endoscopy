@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QComboBox, QDateEdit, QPushButton, QRadioButton,
     QButtonGroup, QFrame, QTableWidget, QTableWidgetItem, QHeaderView,
     QCheckBox, QMessageBox, QGraphicsDropShadowEffect, QPlainTextEdit,
-    QAbstractItemView
+    QAbstractItemView, QApplication
 )
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QColor, QPixmap
@@ -273,14 +273,17 @@ class ArchiveDialog(QDialog):
         card.setGraphicsEffect(shadow)
         
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(18, 14, 18, 16)
-        card_layout.setSpacing(10)
+        card_layout.setContentsMargins(14, 10, 14, 12)
+        card_layout.setSpacing(8)
         
         # =========================================================================
         # 1. HEADER: [CLOSE] ... Patients Archive ... Showing Last X Patient(s)
+        # Top banner with jade/teal gradient matching Demo/Patientarchive.PNG
         # =========================================================================
-        header_row = QHBoxLayout()
-        header_row.setContentsMargins(0, 0, 0, 2)
+        header_frame = QFrame()
+        header_frame.setObjectName("archiveHeaderBar")
+        header_row = QHBoxLayout(header_frame)
+        header_row.setContentsMargins(8, 4, 10, 4)
         
         btn_close = QPushButton("CLOSE")
         btn_close.setObjectName("cardCloseBtn")
@@ -291,7 +294,7 @@ class ArchiveDialog(QDialog):
         header_row.addStretch()
         
         title_lbl = QLabel("Patients Archive")
-        title_lbl.setObjectName("cardTitle")
+        title_lbl.setObjectName("archiveHeaderTitle")
         title_lbl.setAlignment(Qt.AlignCenter)
         header_row.addWidget(title_lbl)
         
@@ -301,18 +304,7 @@ class ArchiveDialog(QDialog):
         self.lbl_counter.setObjectName("archiveCounterBadge")
         header_row.addWidget(self.lbl_counter)
         
-        card_layout.addLayout(header_row)
-        
-        # Header separator
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("""
-            background: qlineargradient(x1:0, y1:0, x2:1, y2:0, 
-                stop:0 transparent, stop:0.2 #0284C7, stop:0.5 #38BDF8, stop:0.8 #0284C7, stop:1 transparent);
-            max-height: 1.5px;
-            margin-bottom: 4px;
-        """)
-        card_layout.addWidget(sep)
+        card_layout.addWidget(header_frame)
         
         # =========================================================================
         # 2. UPPER ARCHIVE TABLE (9 Columns matching reference image)
@@ -324,103 +316,101 @@ class ArchiveDialog(QDialog):
             "Auto ID", "Patient Name", "Age", "Sex", "Visit Date", "Procedure", "Doctors", "Referrers", "MRN"
         ])
         self.table.horizontalHeader().setObjectName("archiveTableHeader")
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(5, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.table.setAlternatingRowColors(True)
         self.table.verticalHeader().setVisible(False)
+        self.table.setShowGrid(True)
+        self.table.setColumnWidth(0, 95)   # Auto ID
+        self.table.setColumnWidth(1, 160)  # Patient Name
+        self.table.setColumnWidth(2, 55)   # Age
+        self.table.setColumnWidth(3, 65)   # Sex
+        self.table.setColumnWidth(4, 95)   # Visit Date
+        self.table.setColumnWidth(5, 170)  # Procedure
+        self.table.setColumnWidth(6, 165)  # Doctors
+        self.table.setColumnWidth(7, 165)  # Referrers
+        self.table.horizontalHeader().setStretchLastSection(True)
         self.table.itemSelectionChanged.connect(self._on_table_row_selected)
         
-        card_layout.addWidget(self.table, stretch=3)
+        card_layout.addWidget(self.table, stretch=4)
         
         # =========================================================================
         # 3. MIDDLE SELECTED PATIENT DETAILS & ACTION BOX
         # =========================================================================
         middle_row = QHBoxLayout()
-        middle_row.setSpacing(12)
+        middle_row.setSpacing(10)
         
-        # Green-bordered details sub-card
+        # Green-bordered details sub-card matching Demo/Patientarchive.PNG
         details_box = QFrame()
         details_box.setObjectName("selectedPatientDetailsBox")
         d_layout = QHBoxLayout(details_box)
-        d_layout.setContentsMargins(10, 8, 10, 8)
-        d_layout.setSpacing(12)
+        d_layout.setContentsMargins(10, 6, 10, 6)
+        d_layout.setSpacing(10)
         
-        # Left: Address
-        addr_layout = QVBoxLayout()
-        addr_layout.setSpacing(4)
-        lbl_addr = QLabel("Selected Patient's Address :")
-        lbl_addr.setStyleSheet("color: #E2E8F0; font-size: 11px; font-weight: 700;")
-        self.txt_address = QPlainTextEdit()
-        self.txt_address.setFixedHeight(48)
-        self.txt_address.setStyleSheet("background-color: #1E293B; color: #F8FAFC; border: 1.5px solid #334155; border-radius: 4px; font-size: 12px;")
-        addr_layout.addWidget(lbl_addr)
-        addr_layout.addWidget(self.txt_address)
-        d_layout.addLayout(addr_layout, stretch=3)
+        # Left: Address label stacked vertically
+        lbl_addr = QLabel("Selected\nPatient's\nAddress :")
+        lbl_addr.setProperty("class", "archiveFieldLabel")
+        lbl_addr.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        d_layout.addWidget(lbl_addr)
         
-        # Middle: Town & Postcode
-        mid_layout = QGridLayout()
-        mid_layout.setSpacing(6)
+        self.txt_address = QLineEdit()
+        self.txt_address.setProperty("class", "archiveInput")
+        self.txt_address.setMinimumHeight(38)
+        d_layout.addWidget(self.txt_address, stretch=3)
+        
+        # Middle-Right: 2-row grid with Town, State, Update / Post Code, Phone, Delete
+        sub_grid = QGridLayout()
+        sub_grid.setHorizontalSpacing(8)
+        sub_grid.setVerticalSpacing(5)
+        
         lbl_town = QLabel("Town :")
-        lbl_town.setStyleSheet("color: #E2E8F0; font-size: 11px; font-weight: 700;")
+        lbl_town.setProperty("class", "archiveFieldLabel")
         self.input_town = QLineEdit()
-        self.input_town.setProperty("class", "formInput")
+        self.input_town.setProperty("class", "archiveInput")
         
-        lbl_post = QLabel("Post Code :")
-        lbl_post.setStyleSheet("color: #E2E8F0; font-size: 11px; font-weight: 700;")
-        self.input_post = QLineEdit()
-        self.input_post.setProperty("class", "formInput")
-        
-        mid_layout.addWidget(lbl_town, 0, 0)
-        mid_layout.addWidget(self.input_town, 0, 1)
-        mid_layout.addWidget(lbl_post, 1, 0)
-        mid_layout.addWidget(self.input_post, 1, 1)
-        d_layout.addLayout(mid_layout, stretch=2)
-        
-        # Right: State & Phone
-        right_layout = QGridLayout()
-        right_layout.setSpacing(6)
         lbl_state = QLabel("State :")
-        lbl_state.setStyleSheet("color: #E2E8F0; font-size: 11px; font-weight: 700;")
+        lbl_state.setProperty("class", "archiveFieldLabel")
         self.input_state = QLineEdit()
-        self.input_state.setProperty("class", "formInput")
-        
-        lbl_phone = QLabel("Phone :")
-        lbl_phone.setStyleSheet("color: #E2E8F0; font-size: 11px; font-weight: 700;")
-        self.input_phone = QLineEdit()
-        self.input_phone.setProperty("class", "formInput")
-        
-        right_layout.addWidget(lbl_state, 0, 0)
-        right_layout.addWidget(self.input_state, 0, 1)
-        right_layout.addWidget(lbl_phone, 1, 0)
-        right_layout.addWidget(self.input_phone, 1, 1)
-        d_layout.addLayout(right_layout, stretch=2)
-        
-        # Action buttons in details box: [Update] [Delete]
-        in_actions = QVBoxLayout()
-        in_actions.setSpacing(6)
+        self.input_state.setProperty("class", "archiveInput")
         
         btn_update = QPushButton("Update")
         btn_update.setObjectName("btnArchiveUpdate")
         btn_update.setCursor(Qt.PointingHandCursor)
         btn_update.clicked.connect(self._handle_update_patient)
-        in_actions.addWidget(btn_update)
+        
+        lbl_post = QLabel("Post Code :")
+        lbl_post.setProperty("class", "archiveFieldLabel")
+        self.input_post = QLineEdit()
+        self.input_post.setProperty("class", "archiveInput")
+        
+        lbl_phone = QLabel("Phone :")
+        lbl_phone.setProperty("class", "archiveFieldLabel")
+        self.input_phone = QLineEdit()
+        self.input_phone.setProperty("class", "archiveInput")
         
         btn_delete = QPushButton("Delete")
         btn_delete.setObjectName("btnArchiveDelete")
         btn_delete.setCursor(Qt.PointingHandCursor)
         btn_delete.clicked.connect(self._handle_delete_patient)
-        in_actions.addWidget(btn_delete)
         
-        d_layout.addLayout(in_actions)
-        middle_row.addWidget(details_box, stretch=4)
+        sub_grid.addWidget(lbl_town, 0, 0)
+        sub_grid.addWidget(self.input_town, 0, 1)
+        sub_grid.addWidget(lbl_state, 0, 2)
+        sub_grid.addWidget(self.input_state, 0, 3)
+        sub_grid.addWidget(btn_update, 0, 4)
         
-        # Far Right Action Buttons: [New Patient], [Capture], [Show Report], [Image Plus]
-        side_action_layout = QGridLayout()
-        side_action_layout.setSpacing(6)
+        sub_grid.addWidget(lbl_post, 1, 0)
+        sub_grid.addWidget(self.input_post, 1, 1)
+        sub_grid.addWidget(lbl_phone, 1, 2)
+        sub_grid.addWidget(self.input_phone, 1, 3)
+        sub_grid.addWidget(btn_delete, 1, 4)
+        
+        d_layout.addLayout(sub_grid, stretch=4)
+        middle_row.addWidget(details_box, stretch=1)
+        
+        # Far Right Action Buttons (Vertical Stack of 4)
+        side_action_layout = QVBoxLayout()
+        side_action_layout.setSpacing(4)
         
         btn_new_pat = QPushButton("New Patient")
         btn_new_pat.setProperty("class", "archiveSideActionBtn")
@@ -442,26 +432,21 @@ class ArchiveDialog(QDialog):
         btn_img_plus.setCursor(Qt.PointingHandCursor)
         btn_img_plus.clicked.connect(self._show_image_plus_modal)
         
-        side_action_layout.addWidget(btn_new_pat, 0, 0)
-        side_action_layout.addWidget(btn_capture, 0, 1)
-        side_action_layout.addWidget(btn_show_rep, 1, 0)
-        side_action_layout.addWidget(btn_img_plus, 1, 1)
+        side_action_layout.addWidget(btn_new_pat)
+        side_action_layout.addWidget(btn_capture)
+        side_action_layout.addWidget(btn_show_rep)
+        side_action_layout.addWidget(btn_img_plus)
+        middle_row.addLayout(side_action_layout)
         
-        middle_row.addLayout(side_action_layout, stretch=2)
         card_layout.addLayout(middle_row)
         
         # =========================================================================
         # 4. BOTTOM SEARCH: "Search Patients By 12 Criteria"
         # =========================================================================
-        search_box = QFrame()
-        search_box.setObjectName("search12Box")
-        s_layout = QVBoxLayout(search_box)
-        s_layout.setContentsMargins(10, 6, 10, 8)
-        s_layout.setSpacing(6)
-        
         s_top = QHBoxLayout()
-        s_title = QLabel("Search Patients By 12 Criteria  <span style='color: #94A3B8; font-size: 11px; font-weight: normal;'>(select single or multiple criteria for precision filtering)</span>")
-        s_title.setStyleSheet("color: #E2E8F0; font-size: 12px; font-weight: 700;")
+        s_top.setContentsMargins(4, 2, 4, 0)
+        s_title = QLabel("Search Patients By 12 Criteria (you can select single to maximum criteria at a time for accurate search)")
+        s_title.setObjectName("search12HeaderTitle")
         s_top.addWidget(s_title)
         s_top.addStretch()
         
@@ -470,14 +455,13 @@ class ArchiveDialog(QDialog):
         btn_search.setCursor(Qt.PointingHandCursor)
         btn_search.clicked.connect(self._handle_search)
         s_top.addWidget(btn_search)
+        card_layout.addLayout(s_top)
         
-        btn_reset = QPushButton("Reset Filters")
-        btn_reset.setObjectName("btnArchiveReset")
-        btn_reset.setCursor(Qt.PointingHandCursor)
-        btn_reset.clicked.connect(self._handle_reset)
-        s_top.addWidget(btn_reset)
-        
-        s_layout.addLayout(s_top)
+        search_box = QFrame()
+        search_box.setObjectName("search12Box")
+        s_layout = QVBoxLayout(search_box)
+        s_layout.setContentsMargins(10, 6, 10, 6)
+        s_layout.setSpacing(4)
         
         # 3 Column Criteria Grid
         c_grid = QGridLayout()
@@ -486,17 +470,17 @@ class ArchiveDialog(QDialog):
         
         def _make_b2wn():
             lbl = QLabel("- b2wn -")
-            lbl.setStyleSheet("color: #94A3B8; font-weight: 700; font-size: 11px;")
+            lbl.setProperty("class", "archiveB2wnLabel")
             return lbl
         
         # --- Column 1: A.ID, Age, Date, Sex ---
         self.chk_aid = QCheckBox("A. ID :")
-        self.chk_aid.setProperty("class", "sideCheckBox")
+        self.chk_aid.setProperty("class", "archiveCriteriaCheck")
         self.input_aid_min = QLineEdit("0")
-        self.input_aid_min.setProperty("class", "formInput")
+        self.input_aid_min.setProperty("class", "archiveInput")
         self.input_aid_min.setFixedWidth(56)
-        self.input_aid_max = QLineEdit("999999")
-        self.input_aid_max.setProperty("class", "formInput")
+        self.input_aid_max = QLineEdit("0")
+        self.input_aid_max.setProperty("class", "archiveInput")
         self.input_aid_max.setFixedWidth(70)
         
         aid_lay = QHBoxLayout()
@@ -508,12 +492,12 @@ class ArchiveDialog(QDialog):
         c_grid.addLayout(aid_lay, 0, 1)
         
         self.chk_age = QCheckBox("Age :")
-        self.chk_age.setProperty("class", "sideCheckBox")
+        self.chk_age.setProperty("class", "archiveCriteriaCheck")
         self.input_age_min = QLineEdit("0")
-        self.input_age_min.setProperty("class", "formInput")
+        self.input_age_min.setProperty("class", "archiveInput")
         self.input_age_min.setFixedWidth(56)
-        self.input_age_max = QLineEdit("120")
-        self.input_age_max.setProperty("class", "formInput")
+        self.input_age_max = QLineEdit("0")
+        self.input_age_max.setProperty("class", "archiveInput")
         self.input_age_max.setFixedWidth(70)
         
         age_lay = QHBoxLayout()
@@ -525,15 +509,15 @@ class ArchiveDialog(QDialog):
         c_grid.addLayout(age_lay, 1, 1)
         
         self.chk_date = QCheckBox("Date :")
-        self.chk_date.setProperty("class", "sideCheckBox")
+        self.chk_date.setProperty("class", "archiveCriteriaCheck")
         self.input_date_min = QDateEdit()
-        self.input_date_min.setProperty("class", "formInput")
+        self.input_date_min.setProperty("class", "archiveDate")
         self.input_date_min.setCalendarPopup(True)
         self.input_date_min.setDisplayFormat("dd-MM-yyyy")
-        self.input_date_min.setDate(QDate.currentDate().addDays(-90))
+        self.input_date_min.setDate(QDate.currentDate().addDays(-1))
         
         self.input_date_max = QDateEdit()
-        self.input_date_max.setProperty("class", "formInput")
+        self.input_date_max.setProperty("class", "archiveDate")
         self.input_date_max.setCalendarPopup(True)
         self.input_date_max.setDisplayFormat("dd-MM-yyyy")
         self.input_date_max.setDate(QDate.currentDate())
@@ -546,12 +530,12 @@ class ArchiveDialog(QDialog):
         c_grid.addLayout(date_lay, 2, 1)
         
         self.chk_sex = QCheckBox("Sex :")
-        self.chk_sex.setProperty("class", "sideCheckBox")
+        self.chk_sex.setProperty("class", "archiveCriteriaCheck")
         self.radio_s_male = QRadioButton("Male")
-        self.radio_s_male.setProperty("class", "formRadio")
+        self.radio_s_male.setProperty("class", "archiveRadio")
         self.radio_s_male.setChecked(True)
         self.radio_s_female = QRadioButton("Female")
-        self.radio_s_female.setProperty("class", "formRadio")
+        self.radio_s_female.setProperty("class", "archiveRadio")
         
         sex_group = QButtonGroup(self)
         sex_group.addButton(self.radio_s_male)
@@ -566,62 +550,62 @@ class ArchiveDialog(QDialog):
         
         # --- Column 2: MRN, Name, Indication, Report ---
         self.chk_mrn = QCheckBox("MRN :")
-        self.chk_mrn.setProperty("class", "sideCheckBox")
+        self.chk_mrn.setProperty("class", "archiveCriteriaCheck")
         self.input_s_mrn = QLineEdit()
-        self.input_s_mrn.setProperty("class", "formInput")
+        self.input_s_mrn.setProperty("class", "archiveInput")
         c_grid.addWidget(self.chk_mrn, 0, 2)
         c_grid.addWidget(self.input_s_mrn, 0, 3)
         
         self.chk_name = QCheckBox("Name :")
-        self.chk_name.setProperty("class", "sideCheckBox")
+        self.chk_name.setProperty("class", "archiveCriteriaCheck")
         self.input_s_name = QLineEdit()
-        self.input_s_name.setProperty("class", "formInput")
+        self.input_s_name.setProperty("class", "archiveInput")
         c_grid.addWidget(self.chk_name, 1, 2)
         c_grid.addWidget(self.input_s_name, 1, 3)
         
         self.chk_ind = QCheckBox("Indication :")
-        self.chk_ind.setProperty("class", "sideCheckBox")
+        self.chk_ind.setProperty("class", "archiveCriteriaCheck")
         self.input_s_ind = QLineEdit()
-        self.input_s_ind.setProperty("class", "formInput")
+        self.input_s_ind.setProperty("class", "archiveInput")
         c_grid.addWidget(self.chk_ind, 2, 2)
         c_grid.addWidget(self.input_s_ind, 2, 3)
         
         self.chk_rep = QCheckBox("Report :")
-        self.chk_rep.setProperty("class", "sideCheckBox")
+        self.chk_rep.setProperty("class", "archiveCriteriaCheck")
         self.input_s_rep = QLineEdit()
-        self.input_s_rep.setProperty("class", "formInput")
+        self.input_s_rep.setProperty("class", "archiveInput")
         c_grid.addWidget(self.chk_rep, 3, 2)
         c_grid.addWidget(self.input_s_rep, 3, 3)
         
         # --- Column 3: Procedure, History, Doctor, Referrer ---
         self.chk_proc = QCheckBox("Procedure :")
-        self.chk_proc.setProperty("class", "sideCheckBox")
+        self.chk_proc.setProperty("class", "archiveCriteriaCheck")
         self.combo_s_proc = QComboBox()
-        self.combo_s_proc.setProperty("class", "formCombo")
+        self.combo_s_proc.setProperty("class", "archiveCombo")
         self.combo_s_proc.addItems(["COLONOSCOPY", "UPPER GI ENDOSCOPY", "ERCP", "SIGMOIDOSCOPY", "EUS"])
         c_grid.addWidget(self.chk_proc, 0, 4)
         c_grid.addWidget(self.combo_s_proc, 0, 5)
         
         self.chk_hist = QCheckBox("History :")
-        self.chk_hist.setProperty("class", "sideCheckBox")
+        self.chk_hist.setProperty("class", "archiveCriteriaCheck")
         self.combo_s_hist = QComboBox()
-        self.combo_s_hist.setProperty("class", "formCombo")
+        self.combo_s_hist.setProperty("class", "archiveCombo")
         self.combo_s_hist.addItems(["All Histories", "Prior Polypectomy", "GERD / Barrett's", "Inflammatory Bowel Disease", "Post-Surgical"])
         c_grid.addWidget(self.chk_hist, 1, 4)
         c_grid.addWidget(self.combo_s_hist, 1, 5)
         
         self.chk_doc = QCheckBox("Doctor :")
-        self.chk_doc.setProperty("class", "sideCheckBox")
+        self.chk_doc.setProperty("class", "archiveCriteriaCheck")
         self.combo_s_doc = QComboBox()
-        self.combo_s_doc.setProperty("class", "formCombo")
+        self.combo_s_doc.setProperty("class", "archiveCombo")
         self.combo_s_doc.addItems(["Dr. Sarah Jenkins", "Dr. Michael Chang", "Dr. Elena Rostova", "Dr. David Miller"])
         c_grid.addWidget(self.chk_doc, 2, 4)
         c_grid.addWidget(self.combo_s_doc, 2, 5)
         
         self.chk_ref = QCheckBox("Referrer :")
-        self.chk_ref.setProperty("class", "sideCheckBox")
+        self.chk_ref.setProperty("class", "archiveCriteriaCheck")
         self.combo_s_ref = QComboBox()
-        self.combo_s_ref.setProperty("class", "formCombo")
+        self.combo_s_ref.setProperty("class", "archiveCombo")
         self.combo_s_ref.addItems(["Metropolitan Clinic", "Westside Family Practice", "Direct Clinical Intake", "St. Jude Internal Medicine"])
         c_grid.addWidget(self.chk_ref, 3, 4)
         c_grid.addWidget(self.combo_s_ref, 3, 5)
@@ -661,7 +645,7 @@ class ArchiveDialog(QDialog):
             self._load_patient_details(self._current_filtered[row])
 
     def _load_patient_details(self, rec):
-        self.txt_address.setPlainText(rec.get("address", ""))
+        self.txt_address.setText(rec.get("address", ""))
         self.input_town.setText(rec.get("town", ""))
         self.input_state.setText(rec.get("state", ""))
         self.input_post.setText(rec.get("postcode", ""))
@@ -681,7 +665,7 @@ class ArchiveDialog(QDialog):
             return
             
         rec = self._current_filtered[row]
-        rec["address"] = self.txt_address.toPlainText().strip()
+        rec["address"] = self.txt_address.text().strip()
         rec["town"] = self.input_town.text().strip()
         rec["state"] = self.input_state.text().strip()
         rec["postcode"] = self.input_post.text().strip()
@@ -691,6 +675,7 @@ class ArchiveDialog(QDialog):
             self, "Patient Record Updated",
             f"✓ Contact & Address for {rec.get('name')} [{rec.get('mrn')}] updated successfully."
         )
+
 
     def _handle_delete_patient(self):
         row = self.table.currentRow()

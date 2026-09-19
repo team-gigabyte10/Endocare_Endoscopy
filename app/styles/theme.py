@@ -793,156 +793,229 @@ def get_stylesheet() -> str:
     }}
     
     /* ==========================================================================
-       PATIENTS ARCHIVE WORKSTATION STYLES
+       PATIENTS ARCHIVE WORKSTATION STYLES (MATCHING Demo/Patientarchive.PNG)
        ========================================================================== */
        
     QFrame#archiveWorkstationRoot {{
-        background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #070E16, stop:0.5 #0B1622, stop:1 #050A10);
+        background: #374151;
     }}
     
     QFrame#archiveWorkstationCard {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0E2436, stop:0.35 #091A28, stop:1 #05101A);
-        border: 2px solid #0284C7;
-        border-radius: 12px;
+        background: #2D3748;
+        border: 1.5px solid #4B5563;
+        border-radius: 8px;
+    }}
+    
+    /* Top Jade/Teal Banner Header */
+    QFrame#archiveHeaderBar {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #3D7363, stop:0.5 #2D584C, stop:1 #1F3D35);
+        border: 1px solid #1B4036;
+        border-radius: 4px;
+        padding: 4px 8px;
+    }}
+    
+    QLabel#archiveHeaderTitle {{
+        color: #D1E7DD;
+        font-size: 22px;
+        font-weight: 900;
+        letter-spacing: 1px;
     }}
     
     QLabel#archiveCounterBadge {{
-        color: #38BDF8;
-        font-size: 13px;
+        color: #FFFFFF;
+        font-size: 12px;
         font-weight: 700;
-        background-color: rgba(2, 132, 199, 0.15);
-        border: 1px solid rgba(2, 132, 199, 0.4);
-        border-radius: 6px;
-        padding: 4px 12px;
+        background: transparent;
+        border: none;
+        padding: 2px 6px;
     }}
     
-    /* Archive Table */
+    /* Upper Archive Table (9 Columns: Black Header, White/Silver Canvas) */
     QTableWidget#archiveTable {{
-        background-color: #081018;
-        border: 1.5px solid #1E293B;
-        border-radius: 8px;
-        gridline-color: #1E293B;
-        color: #F8FAFC;
+        background-color: #ECEEF1;
+        border: 1.5px solid #94A3B8;
+        border-radius: 4px;
+        gridline-color: #CBD5E1;
+        color: #0F172A;
         font-size: 12px;
-        selection-background-color: #0284C7;
+        selection-background-color: #000000;
         selection-color: #FFFFFF;
     }}
     
     QTableWidget#archiveTable::item {{
-        padding: 6px 8px;
-        border-bottom: 1px solid #111E2E;
-    }}
-    
-    QTableWidget#archiveTable::item:alternate {{
-        background-color: #0B1724;
+        padding: 4px 6px;
+        border-bottom: 1px solid #E2E8F0;
+        color: #0F172A;
     }}
     
     QTableWidget#archiveTable::item:selected {{
-        background-color: #0284C7;
+        background-color: #000000;
         color: #FFFFFF;
-        font-weight: 600;
+        font-weight: 700;
     }}
     
     QHeaderView::section#archiveTableHeader {{
-        background-color: #0F1D2C;
-        color: #E2E8F0;
-        font-weight: 700;
-        font-size: 12px;
-        padding: 6px 8px;
-        border: none;
-        border-bottom: 2px solid #0284C7;
-    }}
-    
-    /* Selected Patient Details Box */
-    QFrame#selectedPatientDetailsBox {{
-        background: rgba(16, 185, 129, 0.04);
-        border: 1.5px solid #10B981;
-        border-radius: 8px;
-        padding: 10px;
-    }}
-    
-    QPushButton#btnArchiveUpdate {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #E0F2FE);
-        color: #0369A1;
-        border: 1.5px solid #0284C7;
-        border-radius: 6px;
-        font-size: 13px;
+        background-color: #000000;
+        color: #FFFFFF;
         font-weight: 800;
-        padding: 6px 16px;
+        font-size: 12px;
+        padding: 5px 6px;
+        border: 1px solid #334155;
+    }}
+    
+    /* Green-Bordered Details & Search Sub-Cards */
+    QFrame#selectedPatientDetailsBox, QFrame#search12Box {{
+        background-color: #E5E7EB;
+        border: 2px solid #22C55E;
+        border-radius: 6px;
+        padding: 6px 10px;
+    }}
+    
+    QLabel.archiveFieldLabel {{
+        color: #111827;
+        font-size: 11px;
+        font-weight: 700;
+    }}
+    
+    QLineEdit.archiveInput, QPlainTextEdit.archiveInput, QComboBox.archiveCombo, QDateEdit.archiveDate {{
+        background-color: #FFFFFF;
+        color: #000000;
+        border: 1px solid #94A3B8;
+        border-radius: 3px;
+        padding: 3px 6px;
+        font-size: 11px;
+        font-weight: 600;
+    }}
+    QLineEdit.archiveInput:focus, QPlainTextEdit.archiveInput:focus, QComboBox.archiveCombo:focus, QDateEdit.archiveDate:focus {{
+        border-color: #0284C7;
+        background-color: #FFFFFF;
+    }}
+    
+    QComboBox.archiveCombo QAbstractItemView {{
+        background-color: #FFFFFF;
+        color: #000000;
+        border: 1px solid #94A3B8;
+        selection-background-color: #0284C7;
+        selection-color: #FFFFFF;
+        padding: 3px;
+    }}
+    
+    /* Update & Delete Buttons in Address Box */
+    QPushButton#btnArchiveUpdate {{
+        background: #FFFFFF;
+        color: #0000CD;
+        border: 1px solid #94A3B8;
+        border-radius: 3px;
+        font-size: 12px;
+        font-weight: 800;
+        text-decoration: underline;
+        padding: 4px 14px;
     }}
     QPushButton#btnArchiveUpdate:hover {{
-        background: #0284C7;
-        color: #FFFFFF;
+        background: #EFF6FF;
+        border-color: #0000CD;
     }}
     
     QPushButton#btnArchiveDelete {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #FEE2E2);
+        background: #FFFFFF;
         color: #DC2626;
-        border: 1.5px solid #DC2626;
-        border-radius: 6px;
-        font-size: 13px;
+        border: 1px solid #94A3B8;
+        border-radius: 3px;
+        font-size: 12px;
         font-weight: 800;
-        padding: 6px 16px;
+        text-decoration: underline;
+        padding: 4px 14px;
     }}
     QPushButton#btnArchiveDelete:hover {{
-        background: #DC2626;
-        color: #FFFFFF;
+        background: #FEF2F2;
+        border-color: #DC2626;
     }}
     
-    /* Archive Right Command Buttons */
+    /* Archive Right Command Buttons (New Patient, Capture, Show Report, Image Plus) */
     QPushButton.archiveSideActionBtn {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #F1F5F9);
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #DDE2E8);
         color: #0F172A;
-        border: 1.5px solid #94A3B8;
-        border-radius: 6px;
-        font-size: 12px;
+        border: 1px solid #64748B;
+        border-radius: 4px;
+        font-size: 11px;
         font-weight: 700;
-        padding: 7px 12px;
+        padding: 5px 10px;
+        min-width: 115px;
     }}
     QPushButton.archiveSideActionBtn:hover {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0284C7, stop:1 #0369A1);
-        color: #FFFFFF;
-        border-color: #38BDF8;
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #F1F5F9, stop:1 #CBD5E1);
+        border-color: #334155;
+    }}
+    QPushButton.archiveSideActionBtn:pressed {{
+        background: #CBD5E1;
     }}
     
-    /* Search Patients by 12 Criteria Box */
-    QFrame#search12Box {{
-        background: rgba(15, 23, 42, 0.4);
-        border: 1.5px solid #1E293B;
-        border-radius: 8px;
-        padding: 8px 12px;
+    /* 12 Criteria Checkboxes & Controls */
+    QCheckBox.archiveCriteriaCheck {{
+        color: #0000CD;
+        font-size: 11px;
+        font-weight: 800;
+        spacing: 5px;
+    }}
+    QCheckBox.archiveCriteriaCheck::indicator {{
+        width: 13px;
+        height: 13px;
+        border-radius: 2px;
+        border: 1px solid #64748B;
+        background: #FFFFFF;
+    }}
+    QCheckBox.archiveCriteriaCheck::indicator:checked {{
+        background-color: #0000CD;
+        border-color: #0000CD;
+    }}
+    
+    QRadioButton.archiveRadio {{
+        color: #111827;
+        font-size: 11px;
+        font-weight: 600;
+        spacing: 4px;
+    }}
+    QRadioButton.archiveRadio::indicator {{
+        width: 13px;
+        height: 13px;
+        border-radius: 6px;
+        border: 1px solid #64748B;
+        background: #FFFFFF;
+    }}
+    QRadioButton.archiveRadio::indicator:checked {{
+        border-color: #0000CD;
+        background: qradialgradient(cx:0.5, cy:0.5, radius:0.4, fx:0.5, fy:0.5, stop:0 #0000CD, stop:1 #FFFFFF);
+    }}
+    
+    QLabel.archiveB2wnLabel {{
+        color: #0000CD;
+        font-weight: 800;
+        font-size: 11px;
+    }}
+    
+    QLabel#search12HeaderTitle {{
+        color: #155E50;
+        font-size: 13px;
+        font-weight: 800;
     }}
     
     QPushButton#btnArchiveSearch {{
-        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #ECFDF5);
-        color: #047857;
-        border: 2px solid #10B981;
-        border-radius: 6px;
+        background: #FFFFFF;
+        color: #15803D;
+        border: 2px solid #22C55E;
+        border-radius: 4px;
         font-size: 13px;
         font-weight: 900;
         letter-spacing: 1px;
-        padding: 5px 22px;
+        padding: 3px 20px;
     }}
     QPushButton#btnArchiveSearch:hover {{
-        background: #10B981;
+        background: #22C55E;
         color: #FFFFFF;
     }}
     
-    QPushButton#btnArchiveReset {{
-        background: transparent;
-        color: #94A3B8;
-        border: 1px solid #475569;
-        border-radius: 6px;
-        font-size: 11px;
-        font-weight: 700;
-        padding: 5px 12px;
-    }}
-    QPushButton#btnArchiveReset:hover {{
-        background: #334155;
-        color: #F8FAFC;
-    }}
-    
     /* ==========================================================================
+
        DOCTORS ARCHIVE WORKSTATION STYLES
        ========================================================================== */
        

@@ -501,8 +501,8 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     def _open_archive(self):
-        from app.ui.workstation_window import WorkstationWindow
-        dlg = WorkstationWindow(initial_module="archive", parent=self)
+        from app.ui.dialogs.archive_dialog import ArchiveDialog
+        dlg = ArchiveDialog(parent=self)
         dlg.exec()
 
     def _open_doctors(self):
