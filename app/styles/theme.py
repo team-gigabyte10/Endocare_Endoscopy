@@ -554,10 +554,10 @@ def get_stylesheet() -> str:
     }}
     
     /* ==========================================================================
-       NEW PATIENT WORKSTATION & FORM CARD STYLES
+       DOCTORS WORKSTATION & UNIFIED WORKSTATION STYLES
        ========================================================================== */
     
-    QFrame#newPatientWorkstationRoot {{
+    QFrame#workstationRoot, QFrame#doctorsWorkstationRoot, QFrame#newPatientWorkstationRoot {{
         background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #070E16, stop:0.5 #0B1622, stop:1 #050A10);
     }}
     
@@ -1056,5 +1056,40 @@ def get_stylesheet() -> str:
     QPushButton.docNavBtn:hover {{
         background: #10B981;
         color: #FFFFFF;
+    }}
+    
+    /* Sidebar Report Operations Box & Secondary Actions */
+    QFrame#reportOpsBox {{
+        background: #08121C;
+        border: 1.5px solid #1E293B;
+        border-radius: 8px;
+        padding: 6px;
+    }}
+    
+    QPushButton.sideActionBtn, QPushButton#btnReportAction {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1E293B, stop:1 #0F172A);
+        color: #E2E8F0;
+        border: 1px solid #334155;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 6px 10px;
+        text-align: center;
+    }}
+    QPushButton.sideActionBtn:hover, QPushButton#btnReportAction:hover {{
+        background: #0284C7;
+        color: #FFFFFF;
+        border-color: #38BDF8;
+    }}
+    
+    QCheckBox.sideCheckBox, QCheckBox#chkReportToggle {{
+        color: #94A3B8;
+        font-size: 11px;
+        font-weight: 600;
+        spacing: 6px;
+        padding: 2px 4px;
+    }}
+    QCheckBox.sideCheckBox:checked, QCheckBox#chkReportToggle:checked {{
+        color: #38BDF8;
     }}
     """

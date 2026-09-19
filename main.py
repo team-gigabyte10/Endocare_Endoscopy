@@ -39,11 +39,16 @@ def main():
     # Instantiate and center MainWindow
     window = MainWindow()
     
-    # Center on screen
-    screen_geo = app.primaryScreen().availableGeometry()
-    x = (screen_geo.width() - window.width()) // 2
-    y = (screen_geo.height() - window.height()) // 2
-    window.move(max(0, x), max(0, y))
+    # Safe desktop bounds: strictly respect availableGeometry (never overlap Windows desktop taskbar)
+    screen = app.primaryScreen()
+    avail = screen.availableGeometry() if screen else None
+    if avail:
+        win_w = min(window.width(), avail.width() - 16)
+        win_h = min(window.height(), avail.height() - 20)
+        window.resize(win_w, win_h)
+        x = avail.x() + (avail.width() - window.width()) // 2
+        y = avail.y() + (avail.height() - window.height()) // 2
+        window.move(max(avail.x(), x), max(avail.y(), y))
     
     window.show()
     sys.exit(app.exec())

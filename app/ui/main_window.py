@@ -496,23 +496,28 @@ class MainWindow(QMainWindow):
             self.close()
 
     def _open_new_patient(self):
-        dlg = NewPatientDialog(self)
+        from app.ui.workstation_window import WorkstationWindow
+        dlg = WorkstationWindow(initial_module="new_patient", parent=self)
         dlg.exec()
 
     def _open_archive(self):
-        dlg = ArchiveDialog(self)
+        from app.ui.workstation_window import WorkstationWindow
+        dlg = WorkstationWindow(initial_module="archive", parent=self)
         dlg.exec()
 
     def _open_doctors(self):
-        dlg = DoctorsDialog(self)
+        from app.ui.workstation_window import WorkstationWindow
+        dlg = WorkstationWindow(initial_module="doctors", parent=self)
         dlg.exec()
 
     def _open_referrers(self):
-        dlg = ReferrersDialog(self)
+        from app.ui.workstation_window import WorkstationWindow
+        dlg = WorkstationWindow(initial_module="referrers", parent=self)
         dlg.exec()
 
     def _open_templates(self):
-        dlg = TemplatesDialog(self)
+        from app.ui.workstation_window import WorkstationWindow
+        dlg = WorkstationWindow(initial_module="templates", parent=self)
         dlg.exec()
 
     def _open_capture_cards(self, mode="library"):
