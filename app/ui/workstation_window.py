@@ -175,7 +175,7 @@ class WorkstationWindow(QDialog):
         btn_back_capture = QPushButton("Back to Capture")
         btn_back_capture.setObjectName("btnReportAction")
         btn_back_capture.setCursor(Qt.PointingHandCursor)
-        btn_back_capture.clicked.connect(self.close_workstation)
+        btn_back_capture.clicked.connect(self._handle_back_to_capture)
         act_layout.addWidget(btn_back_capture)
         
         self.chk_update = QCheckBox("Update Report")
@@ -280,6 +280,14 @@ class WorkstationWindow(QDialog):
     def close_workstation(self):
         """Closes the workstation and returns cleanly to the main launcher."""
         self.accept()
+
+    def _handle_back_to_capture(self):
+        """Switches directly from Workstation to the Clinical Live Capture page."""
+        parent_w = self.parent()
+        self.accept()
+        from app.ui.capture_window import CaptureWindow
+        dlg = CaptureWindow(parent=parent_w)
+        dlg.exec()
 
     def _confirm_exit(self):
         reply = QMessageBox.question(
@@ -589,8 +597,12 @@ class NewPatientCardWidget(QFrame):
             self.input_phone.clear()
             self.input_name.setFocus()
         elif action == PatientAddedSuccessDialog.ACTION_CAPTURE:
-            # Closes intake and returns directly to capture viewports
+            # Closes intake and opens Capture page for the newly registered patient
+            parent_w = self.workstation.parent()
             self.workstation.close_workstation()
+            from app.ui.capture_window import CaptureWindow
+            cap_dlg = CaptureWindow(patient_data=patient_data, parent=parent_w)
+            cap_dlg.exec()
         elif action == PatientAddedSuccessDialog.ACTION_STANDBY:
             # Leaves patient on standby and returns to launcher
             self.workstation.close_workstation()
@@ -995,10 +1007,15 @@ class ArchiveCardWidget(QFrame):
         
         cmd_col = QVBoxLayout()
         cmd_col.setSpacing(4)
+        btn_cap = QPushButton("Capture")
+        btn_cap.setStyleSheet("background: #10B981; color: white; font-weight: bold; padding: 4px;")
+        btn_cap.setCursor(Qt.PointingHandCursor)
+        btn_cap.clicked.connect(self._open_capture_page)
         btn_upd = QPushButton("Update")
         btn_upd.setStyleSheet("background: #0284C7; color: white; font-weight: bold; padding: 4px;")
         btn_del = QPushButton("Delete")
         btn_del.setStyleSheet("background: #DC2626; color: white; font-weight: bold; padding: 4px;")
+        cmd_col.addWidget(btn_cap)
         cmd_col.addWidget(btn_upd)
         cmd_col.addWidget(btn_del)
         mid_row.addLayout(cmd_col, 2)
@@ -1028,6 +1045,26 @@ class ArchiveCardWidget(QFrame):
             self.det_state.setText(r.get("state", ""))
             self.det_post.setText(r.get("postcode", ""))
             self.det_phone.setText(r.get("phone", ""))
+
+    def _open_capture_page(self):
+        rows = self.table.selectionModel().selectedRows()
+        pat = None
+        if rows:
+            r = self.records[rows[0].row()]
+            pat = {
+                "auto_id": r.get("id"),
+                "name": r.get("name"),
+                "mrn": r.get("mrn"),
+                "age": r.get("age"),
+                "sex": r.get("sex"),
+                "proc": r.get("proc"),
+                "doctor": r.get("doc")
+            }
+        parent_w = self.workstation.parent()
+        self.workstation.close_workstation()
+        from app.ui.capture_window import CaptureWindow
+        dlg = CaptureWindow(patient_data=pat, parent=parent_w)
+        dlg.exec()
 
 
 class ReferrersCardWidget(QFrame):

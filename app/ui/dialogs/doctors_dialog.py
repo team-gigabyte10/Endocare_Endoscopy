@@ -3,7 +3,8 @@ import os
 from PySide6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QLineEdit, QPushButton, QFrame, QListWidget, QListWidgetItem,
-    QPlainTextEdit, QCheckBox, QMessageBox, QGraphicsDropShadowEffect
+    QPlainTextEdit, QCheckBox, QMessageBox, QGraphicsDropShadowEffect,
+    QApplication
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QColor
@@ -377,7 +378,7 @@ class DoctorsDialog(QDialog):
         btn_capture = QPushButton("Back to Capture")
         btn_capture.setProperty("class", "sideActionBtn")
         btn_capture.setCursor(Qt.PointingHandCursor)
-        btn_capture.clicked.connect(lambda: QMessageBox.information(self, "Live Stream", "Returning to USB2 Live Endoscopy Viewport..."))
+        btn_capture.clicked.connect(self._handle_back_to_capture)
         act_layout.addWidget(btn_capture)
         
         self.chk_update_report = QCheckBox("Update Report")
@@ -542,6 +543,13 @@ class DoctorsDialog(QDialog):
     def _open_templates(self):
         from app.ui.dialogs.templates_dialog import TemplatesDialog
         dlg = TemplatesDialog(self)
+        dlg.exec()
+
+    def _handle_back_to_capture(self):
+        parent_w = self.parent()
+        self.accept()
+        from app.ui.capture_window import CaptureWindow
+        dlg = CaptureWindow(parent=parent_w)
         dlg.exec()
 
     def _confirm_exit(self):

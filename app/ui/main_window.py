@@ -355,6 +355,27 @@ class MainWindow(QMainWindow):
         btn_cc_settings.clicked.connect(lambda: self._open_capture_cards("library"))
         capture_bar.addWidget(btn_cc_settings)
         
+        btn_launch_capture = QPushButton("📹 Capture")
+        btn_launch_capture.setToolTip("Open Live Endoscopy Capture Workstation")
+        btn_launch_capture.setCursor(Qt.PointingHandCursor)
+        btn_launch_capture.setStyleSheet("""
+            QPushButton {
+                background: #0284C7;
+                color: #FFFFFF;
+                border: 1.5px solid #38BDF8;
+                border-radius: 6px;
+                padding: 6px 14px;
+                font-size: 12px;
+                font-weight: 800;
+            }
+            QPushButton:hover {
+                background: #0369A1;
+                border-color: #7DD3FC;
+            }
+        """)
+        btn_launch_capture.clicked.connect(self._open_capture_window)
+        capture_bar.addWidget(btn_launch_capture)
+        
         center_col.addLayout(capture_bar)
         workspace_layout.addLayout(center_col, stretch=48)
         
@@ -454,8 +475,8 @@ class MainWindow(QMainWindow):
         badge.setAlignment(Qt.AlignCenter)
         layout.addWidget(badge)
         
-        # Click handler to zoom
-        frame.mousePressEvent = lambda e: ImagePreviewModal(img_path, f"{modality} Live Viewport", self).exec()
+        # Click handler to open live capture
+        frame.mousePressEvent = lambda e: self._open_capture_window()
         return frame
 
     def _set_button_icon(self, button: QPushButton, icon_filename: str):
@@ -522,4 +543,9 @@ class MainWindow(QMainWindow):
 
     def _open_capture_cards(self, mode="library"):
         dlg = CaptureCardDialog(mode=mode, parent=self)
+        dlg.exec()
+
+    def _open_capture_window(self):
+        from app.ui.capture_window import CaptureWindow
+        dlg = CaptureWindow(parent=self)
         dlg.exec()

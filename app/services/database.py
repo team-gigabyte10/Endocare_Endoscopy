@@ -496,3 +496,45 @@ class DatabaseService:
             )
             conn.commit()
             return cur.lastrowid
+
+    # =========================================================================
+    # STUDY IMAGES REPOSITORY
+    # =========================================================================
+
+    def save_study_image(self, patient_auto_id: str, file_path: str, frame_number: int = 1, caption: str = "") -> int:
+        """Stores a snapshot reference in the study_images database table."""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO study_images (patient_auto_id, file_path, frame_number, caption, captured_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP);
+                """,
+                (str(patient_auto_id), file_path, frame_number, caption)
+            )
+            conn.commit()
+            return cur.lastrowid
+
+    def get_study_images(self, patient_auto_id: str) -> List[Dict[str, Any]]:
+        """Retrieves all captured study images for a specific patient auto ID."""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT id, patient_auto_id, file_path, frame_number, caption, captured_at
+                FROM study_images
+                WHERE patient_auto_id = ?
+                ORDER BY id ASC;
+                """,
+                (str(patient_auto_id),)
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+    def delete_study_image(self, image_id: int) -> bool:
+        """Deletes a study image record from the database."""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM study_images WHERE id = ?;", (image_id,))
+            conn.commit()
+            return cur.rowcount > 0
+

@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QDialog, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QLineEdit, QComboBox, QDateEdit, QPushButton, QRadioButton,
     QButtonGroup, QFrame, QToolButton, QCheckBox, QMessageBox,
-    QGraphicsDropShadowEffect, QSizePolicy
+    QGraphicsDropShadowEffect, QSizePolicy, QApplication
 )
 from PySide6.QtCore import Qt, QDate, QSize
 from PySide6.QtGui import QIcon, QPixmap, QColor
@@ -452,7 +452,7 @@ class NewPatientDialog(QDialog):
         btn_capture = QPushButton("Back to Capture")
         btn_capture.setProperty("class", "sideActionBtn")
         btn_capture.setCursor(Qt.PointingHandCursor)
-        btn_capture.clicked.connect(lambda: QMessageBox.information(self, "Live Stream", "Returning to USB2 Live Endoscopy Viewport..."))
+        btn_capture.clicked.connect(self._handle_back_to_capture)
         act_layout.addWidget(btn_capture)
         
         self.chk_update_report = QCheckBox("Update Report")
@@ -554,8 +554,21 @@ class NewPatientDialog(QDialog):
             self.input_postcode.clear()
             self.input_phone.clear()
             self.input_name.setFocus()
-        elif action in (PatientAddedSuccessDialog.ACTION_CAPTURE, PatientAddedSuccessDialog.ACTION_STANDBY):
+        elif action == PatientAddedSuccessDialog.ACTION_CAPTURE:
+            parent_w = self.parent()
             self.accept()
+            from app.ui.capture_window import CaptureWindow
+            dlg = CaptureWindow(patient_data=patient_data, parent=parent_w)
+            dlg.exec()
+        elif action == PatientAddedSuccessDialog.ACTION_STANDBY:
+            self.accept()
+
+    def _handle_back_to_capture(self):
+        parent_w = self.parent()
+        self.accept()
+        from app.ui.capture_window import CaptureWindow
+        dlg = CaptureWindow(parent=parent_w)
+        dlg.exec()
 
     def _open_doctors(self):
         dlg = DoctorsDialog(self)

@@ -43,5 +43,6 @@ Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
 
-# Local Clinical Database
+# Local Clinical Database & Captures
 data/*.db*
+data/captures/

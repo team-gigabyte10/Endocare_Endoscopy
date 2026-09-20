@@ -379,7 +379,7 @@ class ArchiveDialog(QDialog):
         btn_capture = QPushButton("Capture")
         btn_capture.setProperty("class", "archiveSideActionBtn")
         btn_capture.setCursor(Qt.PointingHandCursor)
-        btn_capture.clicked.connect(lambda: QMessageBox.information(self, "Capture", "Returning to Endoscopic Grabber Live Viewport..."))
+        btn_capture.clicked.connect(self._open_capture_for_selected_patient)
         
         btn_show_rep = QPushButton("Show Report")
         btn_show_rep.setProperty("class", "archiveSideActionBtn")
@@ -716,6 +716,15 @@ class ArchiveDialog(QDialog):
     def _open_new_patient(self):
         from app.ui.dialogs.new_patient_dialog import NewPatientDialog
         dlg = NewPatientDialog(self)
+        dlg.exec()
+
+    def _open_capture_for_selected_patient(self):
+        row = self.table.currentRow()
+        patient = None
+        if 0 <= row < len(self._current_filtered):
+            patient = self._current_filtered[row]
+        from app.ui.capture_window import CaptureWindow
+        dlg = CaptureWindow(patient_data=patient, parent=self)
         dlg.exec()
 
     def _show_report_modal(self):
