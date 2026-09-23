@@ -78,7 +78,7 @@ class ImagePreviewModal(QDialog):
 class MainWindow(QMainWindow):
     """
     Main Launcher Window for Endocare Endoscopy Management System.
-    Non-fullscreen, professional clinical desktop launcher modeled after the PANORAMA reference layout.
+    Non-fullscreen, professional clinical desktop launcher for Endocare.
     """
     def __init__(self):
         super().__init__()
@@ -212,7 +212,7 @@ class MainWindow(QMainWindow):
         """)
         hero_layout.addWidget(divider)
         
-        # Metadata Sub-Bar: "developed by Team Gigabyte" and "Trial Edition"
+        # Metadata Sub-Bar: "developed by Team Gigabyte" and "Clinical Edition"
         meta_row = QHBoxLayout()
         meta_row.setContentsMargins(4, 2, 4, 4)
         
@@ -222,8 +222,8 @@ class MainWindow(QMainWindow):
         
         meta_row.addStretch()
         
-        lbl_edition = QLabel("Clinical Trial Edition")
-        lbl_edition.setObjectName("trialBadge")
+        lbl_edition = QLabel("Clinical Edition")
+        lbl_edition.setObjectName("editionBadge")
         lbl_edition.setFixedHeight(24)
         meta_row.addWidget(lbl_edition)
         
@@ -519,26 +519,31 @@ class MainWindow(QMainWindow):
     def _open_new_patient(self):
         from app.ui.workstation_window import WorkstationWindow
         dlg = WorkstationWindow(initial_module="new_patient", parent=self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_archive(self):
         from app.ui.dialogs.archive_dialog import ArchiveDialog
         dlg = ArchiveDialog(parent=self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_doctors(self):
         from app.ui.workstation_window import WorkstationWindow
         dlg = WorkstationWindow(initial_module="doctors", parent=self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_referrers(self):
         from app.ui.workstation_window import WorkstationWindow
         dlg = WorkstationWindow(initial_module="referrers", parent=self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_templates(self):
         from app.ui.workstation_window import WorkstationWindow
         dlg = WorkstationWindow(initial_module="templates", parent=self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_capture_cards(self, mode="library"):
@@ -548,4 +553,5 @@ class MainWindow(QMainWindow):
     def _open_capture_window(self):
         from app.ui.capture_window import CaptureWindow
         dlg = CaptureWindow(parent=self)
+        dlg.showFullScreen()
         dlg.exec()

@@ -1,14 +1,12 @@
 """
 Endocare - Clinical Endoscopy Capture Workstation
-Faithfully replicates the PANORAMA 2.42 Trial Edition live capture workstation from:
-- Demo/Screenshot 2026-09-20 003506.png
-- Demo/Screenshot 2026-09-20 003705.png
+Clinical High-Definition Live Capture and Diagnostic Workstation.
 
 Features:
 - Real-time DirectShow hardware video grabber (USB2 Video capture card) with background thread
-- Seamless fallback to authentic PANORAMA trial standby HUD or clinical tissue simulation
+- Seamless fallback to high-definition standby HUD or clinical tissue simulation
 - Instant capture saving to database and disk with shutter flash animation
-- Captured Images Tray on the left with 5 authentic reference thumbnails, bright green selection border, and zoom preview
+- Captured Images Tray on the left with frame selection, delete icon, and zoom preview
 - Live Reporting side pane with full rich text toolbar, font sizing, and endoscopy templates popup
 - Bottom adjustment bar with S-Video / Composite selector, 17-standard Video Type dropdown,
   Resolution selector, real-time Brightness, Contrast, Hue, Saturation sliders, and Reset Color
@@ -174,7 +172,7 @@ class LiveVideoViewport(QLabel):
     """
     High-performance live endoscopic viewport.
     Renders live DirectShow grabber frames from the physical USB2 Video card,
-    with authentic fallback to PANORAMA trial edition HUD or clinical tissue simulation.
+    with authentic fallback to clinical standby HUD or clinical tissue simulation.
     """
     frame_captured = Signal(QImage)
 
@@ -253,8 +251,13 @@ class LiveVideoViewport(QLabel):
         super().closeEvent(event)
 
     def stop_camera(self):
-        if self._cap_thread:
+        if hasattr(self, '_render_timer') and self._render_timer.isActive():
+            self._render_timer.stop()
+        if hasattr(self, '_flash_timer') and self._flash_timer.isActive():
+            self._flash_timer.stop()
+        if hasattr(self, '_cap_thread') and self._cap_thread:
             self._cap_thread.stop()
+            self._cap_thread.wait(1000)
         if self._record_writer:
             try:
                 self._record_writer.release()
@@ -394,15 +397,7 @@ class LiveVideoViewport(QLabel):
         marker2_y = int(h * 0.62)
         painter.fillRect(int(w * 0.27), marker2_y, 4, 4, QColor("#00FF66"))
 
-        # 5. Prominent Neon Green "Trial Edition" Watermark at Bottom
-        # Perfectly matching Demo/Screenshot 2026-09-20 003705.png
-        painter.setPen(QColor("#00FF00"))
-        font_wm = QFont("Arial", int(min(w, h) * 0.16), QFont.Bold)
-        painter.setFont(font_wm)
-        wm_rect = QRect(0, int(h * 0.72), w, int(h * 0.30))
-        painter.drawText(wm_rect, Qt.AlignCenter, "Trial Edition")
-
-        # 6. Top Left & Top Right Live HUD
+        # 5. Top Left & Top Right Live HUD
         # Top-left HUD: Patient ID, Name, Date, Time
         painter.setFont(QFont("Segoe UI", 9, QFont.DemiBold))
         painter.setPen(QColor("#E2E8F0"))
@@ -444,12 +439,12 @@ class LiveVideoViewport(QLabel):
 
 class CaptureWindow(QDialog):
     """
-    PANORAMA 2.42 Trial Edition Live Capture Workstation.
-    Precise, pixel-faithful implementation of Demo/Screenshot 2026-09-20 003506.png and 003705.png.
+    Endocare 2.42 Live Capture Workstation.
+    Clinical High-Definition Live Capture, Image Management, and Reporting Workstation.
     """
     def __init__(self, patient_data: Optional[Dict[str, Any]] = None, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("PANORAMA 2.42 Trial Edition")
+        self.setWindowTitle("Endocare 2.42 • Live Capture Workstation")
         self.setWindowFlags(Qt.Window | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         
         # Load patient
@@ -468,7 +463,7 @@ class CaptureWindow(QDialog):
         self._apply_screen_geometry()
         self._init_ui()
         self._setup_shortcuts()
-        self._seed_reference_thumbnails()
+        self._load_patient_thumbnails()
 
     def _get_fallback_patient(self) -> Dict[str, Any]:
         """Returns the canonical patient from reference screenshot (Nayem Islam, ID 9)."""
@@ -487,15 +482,17 @@ class CaptureWindow(QDialog):
         }
 
     def _apply_screen_geometry(self):
-        screen = QApplication.primaryScreen()
-        avail = screen.availableGeometry() if screen else QRect(0, 0, 1366, 726)
-        target_w = min(1362, avail.width() - 4)
-        target_h = min(726, avail.height() - 20)
-        self.resize(target_w, target_h)
-        self.setMinimumSize(1020, 600)
-        x = avail.x() + (avail.width() - target_w) // 2
-        y = avail.y() + (avail.height() - target_h) // 2
-        self.move(max(avail.x(), x), max(avail.y(), y))
+        self.setWindowState(Qt.WindowFullScreen)
+
+    def closeEvent(self, event):
+        if hasattr(self, 'viewport'):
+            self.viewport.stop_camera()
+        super().closeEvent(event)
+
+    def reject(self):
+        if hasattr(self, 'viewport'):
+            self.viewport.stop_camera()
+        super().reject()
 
     def _setup_shortcuts(self):
         QShortcut(QKeySequence(Qt.Key_Space), self, self._handle_capture_image)
@@ -506,9 +503,9 @@ class CaptureWindow(QDialog):
         QShortcut(QKeySequence(Qt.Key_F8), self, self._toggle_vision_x)
 
     def _init_ui(self):
-        self.setObjectName("panoramaCaptureRoot")
+        self.setObjectName("endocareCaptureRoot")
         self.setStyleSheet("""
-            QDialog#panoramaCaptureRoot {
+            QDialog#endocareCaptureRoot {
                 background-color: #262626;
                 color: #FFFFFF;
                 font-family: 'Segoe UI', Arial, sans-serif;
@@ -814,7 +811,7 @@ class CaptureWindow(QDialog):
         parent_layout.addWidget(top_bar)
 
     def _create_red_sphere_icon(self) -> QIcon:
-        """Generates a 3D red sphere icon matching PANORAMA Record button."""
+        """Generates a 3D red sphere icon for Record button."""
         pix = QPixmap(16, 16)
         pix.fill(Qt.transparent)
         painter = QPainter(pix)
@@ -1572,41 +1569,35 @@ class CaptureWindow(QDialog):
         self.captured_images.append(record)
         self._add_thumbnail_to_tray(record, highlight=True)
 
-    def _seed_reference_thumbnails(self):
-        """
-        Populates the Captured Images Tray with authentic reference thumbnails
-        matching Demo/Screenshot 2026-09-20 003705.png & 003506.png.
-        Frames 1-4 are light cards with green Trial Edition & bissoft text,
-        and Frame 5 is dark with bright green selection border.
-        """
-        # Generate the authentic 5 reference thumbnails seen in Demo/Screenshot 2026-09-20 003705.png
-        for i in range(5):
-            is_inverted = (i < 4)
-            img = QImage(120, 84, QImage.Format_RGB32)
-            bg_color = QColor("#EAEAEA") if is_inverted else QColor("#000000")
-            img.fill(bg_color)
+    def _clear_tray(self):
+        """Clears all thumbnail cards from the tray."""
+        self.captured_images.clear()
+        self._selected_card_widget = None
+        while self.tray_layout.count():
+            item = self.tray_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
 
-            painter = QPainter(img)
-            painter.setRenderHint(QPainter.Antialiasing, True)
-            painter.setPen(QColor("#00DD00"))
-            painter.setFont(QFont("Arial", 9, QFont.Bold))
-            painter.drawText(QRect(0, 18, 120, 20), Qt.AlignCenter, "Trial Edition")
-            painter.setFont(QFont("Arial", 10, QFont.Bold))
-            painter.drawText(QRect(0, 38, 120, 24), Qt.AlignCenter, "www.bissoft.net")
-            painter.end()
-
-            fn = f"ref_tray_frame_{i+1}.png"
-            fp = os.path.join(self._captures_dir, fn)
-            img.save(fp, "PNG")
-
-            record = {
-                "id": i + 1,
-                "path": fp,
-                "image": img,
-                "frame": i + 1
-            }
-            self.captured_images.append(record)
-            self._add_thumbnail_to_tray(record, highlight=(i == 4))
+    def _load_patient_thumbnails(self):
+        """Loads captured study images for the active patient from the database and disk."""
+        self._clear_tray()
+        auto_id = str(self.patient_data.get("auto_id", "9"))
+        saved_imgs = self.db.get_study_images(auto_id)
+        
+        for item in saved_imgs:
+            fp = item.get("file_path", "")
+            if fp and os.path.exists(fp):
+                img = QImage(fp)
+                if not img.isNull():
+                    record = {
+                        "id": item.get("id"),
+                        "path": fp,
+                        "image": img,
+                        "frame": item.get("frame_number", len(self.captured_images) + 1)
+                    }
+                    self.captured_images.append(record)
+                    self._add_thumbnail_to_tray(record, highlight=(len(self.captured_images) == len(saved_imgs)))
 
     def _add_thumbnail_to_tray(self, record: dict, highlight: bool = False):
         card = QFrame()
@@ -1625,22 +1616,94 @@ class CaptureWindow(QDialog):
         clay.setContentsMargins(0, 0, 0, 0)
         clay.setSpacing(0)
 
-        img_lbl = QLabel()
+        img_lbl = QLabel(card)
         img_lbl.setAlignment(Qt.AlignCenter)
         pix = QPixmap.fromImage(record["image"]).scaled(112, 78, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         img_lbl.setPixmap(pix)
         clay.addWidget(img_lbl)
 
-        card.mousePressEvent = lambda e, r=record, c=card: self._on_thumbnail_clicked(r, c)
+        # Image Remove Icon Button at Top-Right
+        btn_remove = QPushButton("✕", card)
+        btn_remove.setObjectName("thumbDeleteBtn")
+        btn_remove.setToolTip(f"Remove Frame #{record.get('frame', '')}")
+        btn_remove.setFixedSize(20, 20)
+        btn_remove.move(card.width() - 24, 4)
+        btn_remove.setCursor(Qt.PointingHandCursor)
+        btn_remove.setStyleSheet("""
+            QPushButton#thumbDeleteBtn {
+                background-color: rgba(220, 38, 38, 0.85);
+                color: #FFFFFF;
+                border: 1px solid rgba(255, 255, 255, 0.8);
+                border-radius: 10px;
+                font-size: 11px;
+                font-weight: 900;
+                padding: 0px;
+                margin: 0px;
+            }
+            QPushButton#thumbDeleteBtn:hover {
+                background-color: #EF4444;
+                border: 1px solid #FFFFFF;
+            }
+            QPushButton#thumbDeleteBtn:pressed {
+                background-color: #991B1B;
+            }
+        """)
+        btn_remove.clicked.connect(lambda checked=False, r=record, c=card: self._handle_delete_thumbnail(r, c))
+
+        def on_card_click(event):
+            if btn_remove.geometry().contains(event.pos()):
+                return
+            self._on_thumbnail_clicked(record, card)
+
+        card.mousePressEvent = on_card_click
         
         card.setContextMenuPolicy(Qt.CustomContextMenu)
-        card.customContextMenuRequested.connect(lambda pos, r=record: self._show_thumbnail_menu(pos, r))
+        card.customContextMenuRequested.connect(lambda pos, r=record, c=card: self._show_thumbnail_menu(pos, r, c))
 
         self.tray_layout.addWidget(card)
         if highlight:
             self._selected_card_widget = card
 
         QTimer.singleShot(50, lambda: self.tray_scroll.verticalScrollBar().setValue(self.tray_scroll.verticalScrollBar().maximum()))
+
+    def _handle_delete_thumbnail(self, record: dict, card_widget: QFrame):
+        """Removes a captured frame from the tray, database, and filesystem."""
+        frame_num = record.get("frame", "")
+        reply = QMessageBox.question(
+            self,
+            "Remove Captured Image",
+            f"Are you sure you want to remove Frame #{frame_num}?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        # 1. Delete from database if record has an ID
+        if record.get("id"):
+            try:
+                self.db.delete_study_image(record["id"])
+            except Exception as e:
+                print(f"[Warning] Failed to delete image from DB: {e}")
+
+        # 2. Delete file from captures dir if it exists
+        file_path = record.get("path")
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"[Warning] Failed to remove image file: {e}")
+
+        # 3. Remove record from internal list
+        if record in self.captured_images:
+            self.captured_images.remove(record)
+
+        # 4. Remove widget from tray UI
+        if self._selected_card_widget == card_widget:
+            self._selected_card_widget = None
+
+        self.tray_layout.removeWidget(card_widget)
+        card_widget.deleteLater()
 
     def _on_thumbnail_clicked(self, record: dict, card_widget: QFrame):
         self._select_thumbnail(record, card_widget)
@@ -1653,13 +1716,16 @@ class CaptureWindow(QDialog):
             card_widget.setStyleSheet("QFrame { background-color: #000000; border: 3px solid #00C800; }")
             self._selected_card_widget = card_widget
 
-    def _show_thumbnail_menu(self, pos, record: dict):
+    def _show_thumbnail_menu(self, pos, record: dict, card_widget: QFrame):
         menu = QMenu(self)
         act_zoom = menu.addAction("🔍 Zoom Preview")
         act_export = menu.addAction("💾 Export Image")
-        act_zoom.triggered.connect(lambda: self._zoom_image(record["path"], record["frame"]))
+        menu.addSeparator()
+        act_del = menu.addAction("🗑 Delete Image")
+        act_zoom.triggered.connect(lambda: self._zoom_image(record["path"], record.get("frame", 1)))
         act_export.triggered.connect(lambda: self._export_image(record["path"]))
-        menu.exec(self.mapToGlobal(pos))
+        act_del.triggered.connect(lambda: self._handle_delete_thumbnail(record, card_widget))
+        menu.exec(card_widget.mapToGlobal(pos))
 
     def _export_image(self, src_path: str):
         target, _ = QFileDialog.getSaveFileName(self, "Export Endoscopy Image", "Endoscopy_Capture.png", "PNG Image (*.png);;JPEG (*.jpg)")
@@ -1717,3 +1783,4 @@ class CaptureWindow(QDialog):
                 self.lbl_id_badge.setText(str(p.get("auto_id", "9")).replace("0000000", ""))
                 self.lbl_patient_title.setText(p.get("name", "Nayem Islam"))
                 self.viewport.set_patient_info(self.patient_data)
+                self._load_patient_thumbnails()

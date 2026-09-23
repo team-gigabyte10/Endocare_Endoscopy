@@ -434,7 +434,8 @@ def get_stylesheet() -> str:
         letter-spacing: 0.5px;
     }}
     
-    QLabel#trialBadge {{
+    QLabel#trialBadge,
+    QLabel#editionBadge {{
         color: #10B981;
         background-color: rgba(16, 185, 129, 0.12);
         border: 1px solid rgba(16, 185, 129, 0.35);

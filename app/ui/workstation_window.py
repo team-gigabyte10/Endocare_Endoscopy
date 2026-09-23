@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QDate, QRect
 from PySide6.QtGui import (
     QPixmap, QColor, QFont, QTextCursor, QTextListFormat,
-    QTextBlockFormat, QTextCharFormat
+    QTextBlockFormat, QTextCharFormat, QKeySequence, QShortcut
 )
 
 
@@ -38,31 +38,24 @@ class WorkstationWindow(QDialog):
         # Safe screen geometry: strictly respect Windows desktop taskbar bounds
         self._apply_safe_screen_geometry()
         
+        # Keyboard shortcut for F11 Full Screen toggle
+        QShortcut(QKeySequence(Qt.Key_F11), self, self._toggle_fullscreen)
+
         # Build unified workspace
         self._init_ui()
         
         # Switch to requested initial module
         self.set_module(initial_module)
 
+    def _toggle_fullscreen(self):
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
+
     def _apply_safe_screen_geometry(self):
-        """Ensures the workstation window never overlaps the Windows desktop bottom taskbar."""
-        screen = QApplication.primaryScreen()
-        avail = screen.availableGeometry() if screen else QRect(0, 0, 1366, 720)
-        
-        # Available height on 1366x768 with 40px taskbar is 728.
-        # Windows title bar takes ~32px, so client height of 672 leaves clear space above taskbar.
-        target_w = min(1350, avail.width() - 16)
-        target_h = min(672, avail.height() - 36)
-        
-        self.resize(target_w, target_h)
-        self.setMinimumSize(1080, 620)
-        self.setMaximumHeight(avail.height() - 8)
-        self.setMaximumWidth(avail.width())
-        
-        # Position centered within available desktop area (above taskbar)
-        x = avail.x() + (avail.width() - target_w) // 2
-        y = avail.y() + (avail.height() - target_h) // 2
-        self.move(max(avail.x(), x), max(avail.y(), y))
+        """Initializes the clinical workstation in Full Screen mode."""
+        self.setWindowState(Qt.WindowFullScreen)
 
     def _init_ui(self):
         root = QFrame(self)

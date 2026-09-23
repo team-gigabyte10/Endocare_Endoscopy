@@ -7,36 +7,34 @@ from PySide6.QtWidgets import (
     QApplication
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap, QColor
+from PySide6.QtGui import QPixmap, QColor, QKeySequence, QShortcut
 
 
 
 class DoctorsDialog(QDialog):
     """
     Doctors Archive Workstation.
-    Full clinical workspace modeled after the PANORAMA reference design,
+    Full clinical workspace for Endocare,
     featuring the two-column Doctors Archive card and the persistent right workflow sidebar.
     """
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Endocare • Clinical Endoscopists & Doctors Archive")
-        # Safe desktop bounds: strictly respect Windows desktop taskbar
-        screen = QApplication.primaryScreen()
-        avail = screen.availableGeometry() if screen else None
-        target_w = min(1350, avail.width() - 16) if avail else 1350
-        target_h = min(672, avail.height() - 36) if avail else 672
-        self.resize(target_w, target_h)
-        self.setMinimumSize(1080, 600)
+        self.setWindowState(Qt.WindowFullScreen)
         self.setWindowFlags(Qt.Window | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-        if avail:
-            self.setMaximumHeight(avail.height() - 8)
-            x = avail.x() + (avail.width() - target_w) // 2
-            y = avail.y() + (avail.height() - target_h) // 2
-            self.move(max(avail.x(), x), max(avail.y(), y))
-        self._assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets"))
+        self.setMinimumSize(1080, 600)
         
+        QShortcut(QKeySequence(Qt.Key_F11), self, self._toggle_fullscreen)
+        
+        self._assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets"))
         self._init_data()
         self._init_ui()
+
+    def _toggle_fullscreen(self):
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
 
     def _init_data(self):
         self.doctors = [

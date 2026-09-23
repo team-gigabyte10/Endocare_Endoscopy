@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QApplication
 )
 from PySide6.QtCore import Qt, QDate
-from PySide6.QtGui import QColor, QPixmap
+from PySide6.QtGui import QColor, QPixmap, QKeySequence, QShortcut
 
 
 class DiagnosticReportModal(QDialog):
@@ -177,7 +177,7 @@ class ImagePlusModal(QDialog):
 class ArchiveDialog(QDialog):
     """
     Patients Archive Workstation.
-    Full clinical archive matching the PANORAMA reference design with:
+    Full clinical archive for Endocare with:
     - Upper records table (9 columns)
     - Selected patient contact/address details card with Update and Delete
     - Command button column: New Patient, Capture, Show Report, Image Plus
@@ -186,22 +186,20 @@ class ArchiveDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Endocare • Patients Archive & Study Records")
-        # Safe desktop bounds: strictly respect Windows desktop taskbar
-        screen = QApplication.primaryScreen()
-        avail = screen.availableGeometry() if screen else None
-        target_w = min(1350, avail.width() - 16) if avail else 1350
-        target_h = min(672, avail.height() - 36) if avail else 672
-        self.resize(target_w, target_h)
-        self.setMinimumSize(1080, 600)
+        self.setWindowState(Qt.WindowFullScreen)
         self.setWindowFlags(Qt.Window | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
-        if avail:
-            self.setMaximumHeight(avail.height() - 8)
-            x = avail.x() + (avail.width() - target_w) // 2
-            y = avail.y() + (avail.height() - target_h) // 2
-            self.move(max(avail.x(), x), max(avail.y(), y))
+        self.setMinimumSize(1080, 600)
+        
+        QShortcut(QKeySequence(Qt.Key_F11), self, self._toggle_fullscreen)
         
         self._init_data()
         self._init_ui()
+
+    def _toggle_fullscreen(self):
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
 
     def _init_data(self):
         from app.services.database import DatabaseService
