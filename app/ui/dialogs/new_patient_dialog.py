@@ -557,6 +557,7 @@ class NewPatientDialog(QDialog):
             self.accept()
             from app.ui.capture_window import CaptureWindow
             dlg = CaptureWindow(patient_data=patient_data, parent=parent_w)
+            dlg.showFullScreen()
             dlg.exec()
         elif action == PatientAddedSuccessDialog.ACTION_STANDBY:
             self.accept()
@@ -566,22 +567,27 @@ class NewPatientDialog(QDialog):
         self.accept()
         from app.ui.capture_window import CaptureWindow
         dlg = CaptureWindow(parent=parent_w)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_doctors(self):
         dlg = DoctorsDialog(self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_referrers(self):
         dlg = ReferrersDialog(self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_archive(self):
         dlg = ArchiveDialog(self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_templates(self):
         dlg = TemplatesDialog(self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _confirm_exit(self):

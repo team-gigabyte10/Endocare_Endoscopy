@@ -227,6 +227,7 @@ class WorkstationWindow(QDialog):
         if module_name == "archive":
             from app.ui.dialogs.archive_dialog import ArchiveDialog
             dlg = ArchiveDialog(parent=self)
+            dlg.showFullScreen()
             dlg.exec()
             return
 
@@ -280,6 +281,7 @@ class WorkstationWindow(QDialog):
         self.accept()
         from app.ui.capture_window import CaptureWindow
         dlg = CaptureWindow(parent=parent_w)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _confirm_exit(self):
@@ -595,6 +597,7 @@ class NewPatientCardWidget(QFrame):
             self.workstation.close_workstation()
             from app.ui.capture_window import CaptureWindow
             cap_dlg = CaptureWindow(patient_data=patient_data, parent=parent_w)
+            cap_dlg.showFullScreen()
             cap_dlg.exec()
         elif action == PatientAddedSuccessDialog.ACTION_STANDBY:
             # Leaves patient on standby and returns to launcher
@@ -1057,6 +1060,7 @@ class ArchiveCardWidget(QFrame):
         self.workstation.close_workstation()
         from app.ui.capture_window import CaptureWindow
         dlg = CaptureWindow(patient_data=pat, parent=parent_w)
+        dlg.showFullScreen()
         dlg.exec()
 
 

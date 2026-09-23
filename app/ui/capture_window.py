@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QTextEdit, QToolButton, QMessageBox, QFileDialog, QApplication,
     QSizePolicy, QMenu, QScrollBar
 )
-from PySide6.QtCore import Qt, QTimer, QTime, QRect, QPoint, QSize, Signal, QThread
+from PySide6.QtCore import Qt, QTimer, QTime, QRect, QPoint, QSize, Signal, QThread, QEvent
 from PySide6.QtGui import (
     QImage, QPixmap, QColor, QFont, QPainter, QPen, QBrush,
     QRadialGradient, QLinearGradient, QTextListFormat, QKeySequence,
@@ -198,8 +198,7 @@ class LiveVideoViewport(QLabel):
         self.filter_crop_onthefly = True  # OnTheFly cropping
         self.filter_invert_gray = True    # GrayScale-Pixels Inverter (checked in 003705)
 
-        # Simulation / Hardware feed mode
-        self._use_simulation_mode = False
+        # Hardware feed state
         self._sim_tick = 0
         self._is_recording = False
         self._record_writer = None
@@ -208,8 +207,6 @@ class LiveVideoViewport(QLabel):
 
         # Last received camera frame
         self._latest_cv_frame = None
-        self._base_pixmap = None
-        self._load_base_asset()
 
         # Flash animation on capture
         self._flash_opacity = 0.0
@@ -225,18 +222,6 @@ class LiveVideoViewport(QLabel):
         self._render_timer = QTimer(self)
         self._render_timer.timeout.connect(self._on_tick)
         self._render_timer.start(33)
-
-    def _load_base_asset(self):
-        possible = ["preview_endo.png", "preview_ercp.png", "preview_usg.png"]
-        for fn in possible:
-            p = os.path.join(self._assets_dir, fn)
-            if os.path.exists(p):
-                self._base_pixmap = QPixmap(p)
-                break
-        if not self._base_pixmap or self._base_pixmap.isNull():
-            img = QImage(640, 480, QImage.Format_RGB32)
-            img.fill(QColor("#000000"))
-            self._base_pixmap = QPixmap.fromImage(img)
 
     def _on_new_camera_frame(self, frame: np.ndarray):
         self._latest_cv_frame = frame
@@ -317,9 +302,7 @@ class LiveVideoViewport(QLabel):
         return self._record_path
 
     def is_hardware_signal_active(self) -> bool:
-        if self._latest_cv_frame is not None:
-            return float(np.mean(self._latest_cv_frame)) > 5.0
-        return False
+        return self._latest_cv_frame is not None
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -334,10 +317,26 @@ class LiveVideoViewport(QLabel):
 
         has_active_signal = self.is_hardware_signal_active()
 
-        # 2. Render Live Feed or Simulation
-        if has_active_signal and self._latest_cv_frame is not None and not self._use_simulation_mode:
+        # 2. Render Live Feed or Standby HUD
+        if has_active_signal and self._latest_cv_frame is not None:
             frame = self._latest_cv_frame.copy()
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            # Apply OnTheFly Image Cropping (4% perimeter crop to remove camera borders)
+            if self.filter_crop_onthefly:
+                ch_h, ch_w = frame.shape[:2]
+                crop_y = int(ch_h * 0.04)
+                crop_x = int(ch_w * 0.04)
+                if crop_y > 0 and crop_x > 0:
+                    frame = frame[crop_y:ch_h - crop_y, crop_x:ch_w - crop_x]
+
+            # Apply GrayScale-Pixels Inverter
+            if self.filter_invert_gray:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                inv = cv2.bitwise_not(gray)
+                rgb_frame = cv2.cvtColor(inv, cv2.COLOR_GRAY2RGB)
+            else:
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
             fh, fw, ch = rgb_frame.shape
             bytes_per_line = ch * fw
             qimg = QImage(rgb_frame.data, fw, fh, bytes_per_line, QImage.Format_RGB888)
@@ -346,27 +345,14 @@ class LiveVideoViewport(QLabel):
             ox = (w - scaled.width()) // 2
             oy = (h - scaled.height()) // 2
             painter.drawPixmap(ox, oy, scaled)
-
-        elif self._use_simulation_mode and self._base_pixmap and not self._base_pixmap.isNull():
-            scale_pulse = 1.0 + 0.015 * math.sin(self._sim_tick * 0.05)
-            shift_x = 3.0 * math.cos(self._sim_tick * 0.03)
-            shift_y = 2.0 * math.sin(self._sim_tick * 0.04)
-
-            pw = int(w * 0.96 * scale_pulse)
-            ph = int(h * 0.94 * scale_pulse)
-            scaled = self._base_pixmap.scaled(pw, ph, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-
-            ox = (w - scaled.width()) // 2 + int(shift_x)
-            oy = (h - scaled.height()) // 2 + int(shift_y)
-
-            if self.filter_crop_onthefly:
-                painter.save()
-                clip_rect = QRect(int(w * 0.04), int(h * 0.04), int(w * 0.92), int(h * 0.92))
-                painter.setClipRect(clip_rect)
-                painter.drawPixmap(ox, oy, scaled)
-                painter.restore()
-            else:
-                painter.drawPixmap(ox, oy, scaled)
+        else:
+            # Standby mode when no camera frame is received - Clean medical HUD, never dummy images
+            painter.setFont(QFont("Segoe UI", 13, QFont.DemiBold))
+            painter.setPen(QColor("#64748B"))
+            painter.drawText(QRect(0, h // 2 - 25, w, 30), Qt.AlignCenter, "STANDBY • NO VIDEO SIGNAL")
+            painter.setFont(QFont("Segoe UI", 9))
+            painter.setPen(QColor("#475569"))
+            painter.drawText(QRect(0, h // 2 + 10, w, 20), Qt.AlignCenter, "DirectShow USB2 Capture Device Ready")
 
         # 3. Filters & Real-time Color Adjustments
         if self.filter_vessel_plus:
@@ -419,8 +405,8 @@ class LiveVideoViewport(QLabel):
                 painter.drawText(w - 95, 24, "REC ● LIVE")
         else:
             painter.setPen(QColor("#38BDF8"))
-            status_text = "USB2 LIVE 60 FPS" if not self._use_simulation_mode else "SIMULATION 60 FPS"
-            painter.drawText(w - 140, 24, status_text)
+            status_text = "USB2 LIVE 60 FPS" if self.is_hardware_signal_active() else "DIRECTSHOW STANDBY"
+            painter.drawText(w - 150, 24, status_text)
 
         # 7. Shutter Flash Effect on Capture
         if self._flash_opacity > 0.0:
@@ -429,12 +415,36 @@ class LiveVideoViewport(QLabel):
 
     def grab_current_frame(self) -> QImage:
         """Captures the current viewport display as a clean, high-resolution QImage."""
-        pix = self.grab()
-        return pix.toImage()
+        if self._latest_cv_frame is not None:
+            frame = self._latest_cv_frame.copy()
+            if self.filter_crop_onthefly:
+                ch_h, ch_w = frame.shape[:2]
+                crop_y = int(ch_h * 0.04)
+                crop_x = int(ch_w * 0.04)
+                if crop_y > 0 and crop_x > 0:
+                    frame = frame[crop_y:ch_h - crop_y, crop_x:ch_w - crop_x]
+            if self.filter_invert_gray:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                inv = cv2.bitwise_not(gray)
+                rgb_frame = cv2.cvtColor(inv, cv2.COLOR_GRAY2RGB)
+            else:
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    def toggle_simulation_mode(self):
-        self._use_simulation_mode = not self._use_simulation_mode
-        self.update()
+            if self.brightness != 50 or self.contrast != 50:
+                alpha = self.contrast / 50.0
+                beta = (self.brightness - 50) * 2.0
+                rgb_frame = np.clip(alpha * rgb_frame.astype(np.float32) + beta, 0, 255).astype(np.uint8)
+
+            fh, fw, ch = rgb_frame.shape
+            bytes_per_line = ch * fw
+            qimg = QImage(rgb_frame.data, fw, fh, bytes_per_line, QImage.Format_RGB888)
+            return qimg.copy()
+
+        old_flash = self._flash_opacity
+        self._flash_opacity = 0.0
+        pix = self.grab()
+        self._flash_opacity = old_flash
+        return pix.toImage()
 
 
 class CaptureWindow(QDialog):
@@ -445,7 +455,12 @@ class CaptureWindow(QDialog):
     def __init__(self, patient_data: Optional[Dict[str, Any]] = None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Endocare 2.42 • Live Capture Workstation")
-        self.setWindowFlags(Qt.Window | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+        
+        # State for dragging & window geometry restoration
+        self._drag_pos = QPoint()
+        self._is_dragging = False
+        self._normal_geometry = None
         
         # Load patient
         self.db = DatabaseService.get_instance()
@@ -482,7 +497,22 @@ class CaptureWindow(QDialog):
         }
 
     def _apply_screen_geometry(self):
+        screen = QApplication.primaryScreen()
+        if screen:
+            self.setGeometry(screen.geometry())
         self.setWindowState(Qt.WindowFullScreen)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not getattr(self, '_initial_show_done', False):
+            self._initial_show_done = True
+            screen = self.screen() or QApplication.primaryScreen()
+            if screen:
+                self.setGeometry(screen.geometry())
+            self.showFullScreen()
+            if hasattr(self, 'btn_win_max'):
+                self.btn_win_max.setText("🗗")
+                self.btn_win_max.setToolTip("Restore Down")
 
     def closeEvent(self, event):
         if hasattr(self, 'viewport'):
@@ -494,6 +524,49 @@ class CaptureWindow(QDialog):
             self.viewport.stop_camera()
         super().reject()
 
+    def changeEvent(self, event):
+        """Keep Full Screen / Restore button icon and tooltip synchronized with window state."""
+        if event.type() == QEvent.WindowStateChange:
+            if hasattr(self, 'btn_win_max'):
+                if self.isFullScreen():
+                    self.btn_win_max.setText("🗗")
+                    self.btn_win_max.setToolTip("Restore Down")
+                else:
+                    self.btn_win_max.setText("🗖")
+                    self.btn_win_max.setToolTip("Full Screen")
+        super().changeEvent(event)
+
+    def mousePressEvent(self, event):
+        """Enable dragging the frameless window when in restored/normal mode."""
+        if not self.isFullScreen() and event.button() == Qt.LeftButton:
+            if hasattr(self, 'title_bar') and event.position().y() <= self.title_bar.height():
+                self._is_dragging = True
+                self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        """Move the window while dragging title bar."""
+        if self._is_dragging and (event.buttons() & Qt.LeftButton):
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self._is_dragging = False
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        """Double clicking title bar toggles between Full Screen and Restored."""
+        if hasattr(self, 'title_bar') and event.position().y() <= self.title_bar.height():
+            if event.button() == Qt.LeftButton:
+                self._toggle_fullscreen()
+                event.accept()
+                return
+        super().mouseDoubleClickEvent(event)
+
     def _setup_shortcuts(self):
         QShortcut(QKeySequence(Qt.Key_Space), self, self._handle_capture_image)
         QShortcut(QKeySequence(Qt.Key_Return), self, self._handle_capture_image)
@@ -504,62 +577,196 @@ class CaptureWindow(QDialog):
 
     def _init_ui(self):
         self.setObjectName("endocareCaptureRoot")
-        self.setStyleSheet("""
-            QDialog#endocareCaptureRoot {
+        check_icon_path = os.path.abspath(os.path.join(self._assets_dir, "checkbox_check.png")).replace("\\", "/")
+        self.setStyleSheet(f"""
+            QDialog#endocareCaptureRoot {{
                 background-color: #262626;
                 color: #FFFFFF;
                 font-family: 'Segoe UI', Arial, sans-serif;
-            }
-            QLabel {
+            }}
+            QLabel {{
                 color: #FFFFFF;
-            }
-            QCheckBox {
+            }}
+            QCheckBox {{
                 color: #FFFFFF;
                 font-size: 11px;
                 font-weight: bold;
                 spacing: 6px;
-            }
-            QCheckBox::indicator {
-                width: 13px;
-                height: 13px;
+            }}
+            QCheckBox::indicator {{
+                width: 14px;
+                height: 14px;
                 border: 1px solid #000000;
                 background: #FFFFFF;
-            }
-            QCheckBox::indicator:checked {
+                border-radius: 2px;
+            }}
+            QCheckBox::indicator:hover {{
+                border: 1px solid #38BDF8;
+            }}
+            QCheckBox::indicator:checked {{
                 background: #FFFFFF;
-                image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 5 L4 8 L8 2' stroke='%23000' stroke-width='2' fill='none'/></svg>");
-            }
-            QComboBox {
+                border: 1px solid #000000;
+                image: url("{check_icon_path}");
+            }}
+            QComboBox {{
                 background: #FFFFFF;
                 color: #000000;
                 border: 1px solid #71717A;
                 font-size: 11px;
                 font-weight: bold;
                 padding: 1px 3px;
-            }
-            QComboBox QAbstractItemView {
+            }}
+            QComboBox QAbstractItemView {{
                 background: #FFFFFF;
                 color: #000000;
                 selection-background-color: #0284C7;
                 selection-color: #FFFFFF;
-            }
+            }}
         """)
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(4, 2, 4, 2)
+        main_layout.setContentsMargins(0, 0, 0, 2)
         main_layout.setSpacing(2)
 
+        # 0. SLEEK CUSTOM TITLE BAR (Minimize, Full Screen/Restore, Close)
+        self._build_title_bar(main_layout)
+
+        # Clinical Workspace Body Container with side padding
+        body_widget = QWidget()
+        body_layout = QVBoxLayout(body_widget)
+        body_layout.setContentsMargins(4, 0, 4, 0)
+        body_layout.setSpacing(2)
+
         # 1. TOP CONTROL BAR
-        self._build_top_control_bar(main_layout)
+        self._build_top_control_bar(body_layout)
 
         # 2. PATIENT CONTEXT SUB-BAR
-        self._build_patient_subbar(main_layout)
+        self._build_patient_subbar(body_layout)
 
         # 3. CENTER SPLITTER (Tray | Live Viewport | Live Reporting)
-        self._build_workspace_center(main_layout)
+        self._build_workspace_center(body_layout)
 
         # 4. BOTTOM VIDEO & COLOR ADJUSTMENT BAR
-        self._build_bottom_adjustment_bar(main_layout)
+        self._build_bottom_adjustment_bar(body_layout)
+
+        main_layout.addWidget(body_widget, 1)
+
+    def _build_title_bar(self, parent_layout: QVBoxLayout):
+        """
+        Sleek clinical title bar containing window title, live patient status,
+        and window controls: Minimize (—), Full Screen/Restore (🗖/🗗), Close (✕).
+        """
+        self.title_bar = QFrame()
+        self.title_bar.setObjectName("captureTitleBar")
+        self.title_bar.setFixedHeight(34)
+        self.title_bar.setStyleSheet("""
+            QFrame#captureTitleBar {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #25282C, stop:1 #16181B);
+                border-bottom: 1px solid #33383F;
+            }
+            QLabel {
+                color: #CBD5E1;
+            }
+            QPushButton[class="winCtrlBtn"] {
+                background: transparent;
+                color: #CBD5E1;
+                border: none;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 0px;
+            }
+            QPushButton[class="winCtrlBtn"]:hover {
+                background-color: rgba(255, 255, 255, 0.15);
+                color: #FFFFFF;
+            }
+            QPushButton[class="winCtrlBtn"]:pressed {
+                background-color: rgba(255, 255, 255, 0.25);
+            }
+            QPushButton#winCtrlClose {
+                background: transparent;
+                color: #CBD5E1;
+                border: none;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-size: 13px;
+                font-weight: bold;
+                padding: 0px;
+            }
+            QPushButton#winCtrlClose:hover {
+                background-color: #E81123;
+                color: #FFFFFF;
+            }
+            QPushButton#winCtrlClose:pressed {
+                background-color: #C42B1C;
+                color: #FFFFFF;
+            }
+        """)
+
+        title_lay = QHBoxLayout(self.title_bar)
+        title_lay.setContentsMargins(10, 0, 0, 0)
+        title_lay.setSpacing(8)
+
+        # Brand Logo / Icon
+        logo_icon = QLabel()
+        logo_path = os.path.join(self._assets_dir, "logo.png")
+        if os.path.exists(logo_path):
+            pix = QPixmap(logo_path).scaled(18, 18, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo_icon.setPixmap(pix)
+        title_lay.addWidget(logo_icon)
+
+        # App & Window Title
+        lbl_title = QLabel("Endocare 2.42  •  Live Capture Workstation")
+        lbl_title.setStyleSheet("color: #F1F5F9; font-size: 12px; font-weight: 700; letter-spacing: 0.5px;")
+        title_lay.addWidget(lbl_title)
+
+        # Patient Info Tag
+        pat_name = self.patient_data.get("name", "Nayem Islam")
+        pat_id = str(self.patient_data.get("auto_id", "9")).replace("0000000", "")
+        self.lbl_title_status = QLabel(f"● LIVE  [{pat_id}] {pat_name}")
+        self.lbl_title_status.setStyleSheet(
+            "color: #10B981; font-size: 11px; font-weight: 600; padding: 2px 8px; "
+            "background: rgba(16, 185, 129, 0.12); border-radius: 4px; border: 1px solid rgba(16, 185, 129, 0.3);"
+        )
+        title_lay.addWidget(self.lbl_title_status)
+
+        # Stretch to fill the middle draggable space
+        title_lay.addStretch()
+
+        # Window Controls: Minimize (—), Full Screen/Restore (🗖/🗗), Close (✕)
+        ctrl_box = QHBoxLayout()
+        ctrl_box.setSpacing(0)
+        ctrl_box.setContentsMargins(0, 0, 0, 0)
+
+        # 1. Minimize (—)
+        self.btn_win_min = QPushButton("—")
+        self.btn_win_min.setProperty("class", "winCtrlBtn")
+        self.btn_win_min.setFixedSize(46, 33)
+        self.btn_win_min.setToolTip("Minimize")
+        self.btn_win_min.setCursor(Qt.PointingHandCursor)
+        self.btn_win_min.clicked.connect(self.showMinimized)
+        ctrl_box.addWidget(self.btn_win_min)
+
+        # 2. Full Screen / Restore (🗖 / 🗗)
+        is_fs = self.isFullScreen()
+        self.btn_win_max = QPushButton("🗗" if is_fs else "🗖")
+        self.btn_win_max.setProperty("class", "winCtrlBtn")
+        self.btn_win_max.setFixedSize(46, 33)
+        self.btn_win_max.setToolTip("Restore Down" if is_fs else "Full Screen")
+        self.btn_win_max.setCursor(Qt.PointingHandCursor)
+        self.btn_win_max.clicked.connect(self._toggle_fullscreen)
+        ctrl_box.addWidget(self.btn_win_max)
+
+        # 3. Close (✕)
+        self.btn_win_close = QPushButton("✕")
+        self.btn_win_close.setObjectName("winCtrlClose")
+        self.btn_win_close.setFixedSize(48, 33)
+        self.btn_win_close.setToolTip("Close (✕)")
+        self.btn_win_close.setCursor(Qt.PointingHandCursor)
+        self.btn_win_close.clicked.connect(self.close)
+        ctrl_box.addWidget(self.btn_win_close)
+
+        title_lay.addLayout(ctrl_box)
+        parent_layout.addWidget(self.title_bar)
 
     def _build_top_control_bar(self, parent_layout: QVBoxLayout):
         top_bar = QFrame()
@@ -1390,8 +1597,6 @@ class CaptureWindow(QDialog):
 
     def _show_viewport_menu(self, pos):
         menu = QMenu(self)
-        action_sim = menu.addAction("Toggle Endoscopy Simulation / DirectShow Stream")
-        action_sim.triggered.connect(self.viewport.toggle_simulation_mode)
         action_fs = menu.addAction("Toggle Full Screen Preview (F11)")
         action_fs.triggered.connect(self._toggle_fullscreen)
         menu.exec(self.viewport.mapToGlobal(pos))
@@ -1448,8 +1653,29 @@ class CaptureWindow(QDialog):
     def _toggle_fullscreen(self):
         if self.isFullScreen():
             self.showNormal()
+            if hasattr(self, '_normal_geometry') and self._normal_geometry:
+                self.setGeometry(self._normal_geometry)
+            else:
+                screen = QApplication.primaryScreen()
+                if screen:
+                    avail = screen.availableGeometry()
+                    w = min(1366, int(avail.width() * 0.92))
+                    h = min(768, int(avail.height() * 0.92))
+                    x = avail.x() + (avail.width() - w) // 2
+                    y = avail.y() + (avail.height() - h) // 2
+                    self.setGeometry(x, y, w, h)
+            if hasattr(self, 'btn_win_max'):
+                self.btn_win_max.setText("🗖")
+                self.btn_win_max.setToolTip("Full Screen")
         else:
+            self._normal_geometry = self.geometry()
+            screen = self.screen() or QApplication.primaryScreen()
+            if screen:
+                self.setGeometry(screen.geometry())
             self.showFullScreen()
+            if hasattr(self, 'btn_win_max'):
+                self.btn_win_max.setText("🗗")
+                self.btn_win_max.setToolTip("Restore Down")
 
     def _toggle_auto_capture(self, checked: bool):
         if checked:
@@ -1542,9 +1768,9 @@ class CaptureWindow(QDialog):
 
     def _handle_capture_image(self):
         """Captures frame from live viewport, saves to disk and database, and displays in tray."""
+        frame_img = self.viewport.grab_current_frame()
         self.viewport.trigger_capture_flash()
 
-        frame_img = self.viewport.grab_current_frame()
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         auto_id = str(self.patient_data.get("auto_id", "9"))
         filename = f"capture_{auto_id}_{timestamp}.png"
@@ -1588,6 +1814,15 @@ class CaptureWindow(QDialog):
         for item in saved_imgs:
             fp = item.get("file_path", "")
             if fp and os.path.exists(fp):
+                # Never load dummy/preview/reference images into the tray
+                fn = os.path.basename(fp).lower()
+                caption = str(item.get("caption", "")).lower()
+                norm_fp = fp.replace("\\", "/").lower()
+                if "preview_" in fn or "ref_tray_frame" in fn or "standard reference view" in caption or "trial edition" in caption:
+                    continue
+                if "assets/" in norm_fp or "assets\\" in fp.lower():
+                    continue
+
                 img = QImage(fp)
                 if not img.isNull():
                     record = {
@@ -1770,11 +2005,13 @@ class CaptureWindow(QDialog):
     def _open_archive(self):
         from app.ui.dialogs.archive_dialog import ArchiveDialog
         dlg = ArchiveDialog(parent=self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_new_patient(self):
         from app.ui.dialogs.new_patient_dialog import NewPatientDialog
         dlg = NewPatientDialog(parent=self)
+        dlg.showFullScreen()
         if dlg.exec() == QDialog.Accepted:
             latest = self.db.get_patients(limit=1)
             if latest:
@@ -1782,5 +2019,8 @@ class CaptureWindow(QDialog):
                 self.patient_data = p
                 self.lbl_id_badge.setText(str(p.get("auto_id", "9")).replace("0000000", ""))
                 self.lbl_patient_title.setText(p.get("name", "Nayem Islam"))
+                if hasattr(self, 'lbl_title_status'):
+                    pat_id = str(p.get("auto_id", "9")).replace("0000000", "")
+                    self.lbl_title_status.setText(f"● LIVE  [{pat_id}] {p.get('name', 'Nayem Islam')}")
                 self.viewport.set_patient_info(self.patient_data)
                 self._load_patient_thumbnails()

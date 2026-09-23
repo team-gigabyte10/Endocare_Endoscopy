@@ -714,6 +714,7 @@ class ArchiveDialog(QDialog):
     def _open_new_patient(self):
         from app.ui.dialogs.new_patient_dialog import NewPatientDialog
         dlg = NewPatientDialog(self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_capture_for_selected_patient(self):
@@ -723,6 +724,7 @@ class ArchiveDialog(QDialog):
             patient = self._current_filtered[row]
         from app.ui.capture_window import CaptureWindow
         dlg = CaptureWindow(patient_data=patient, parent=self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _show_report_modal(self):

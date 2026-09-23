@@ -4,30 +4,55 @@ from PySide6.QtWidgets import (
     QFrame, QMessageBox
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 
 
 class ReferrersDialog(QDialog):
-    """Management dialog for referring physicians and external medical centers."""
+    """Management workstation for referring physicians and external medical centers."""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Endocare • Referring Physicians & Clinics")
-        self.resize(780, 480)
+        self.setWindowState(Qt.WindowFullScreen)
+        self.setWindowFlags(Qt.Window | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        self.setMinimumSize(800, 500)
+        
+        QShortcut(QKeySequence(Qt.Key_F11), self, self._toggle_fullscreen)
         self._init_ui()
+
+    def _toggle_fullscreen(self):
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
         
     def _init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(16)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(14)
         
+        # Header Banner with integrated window controls
         banner = QFrame()
-        banner.setStyleSheet("background-color: #0F766E; border-radius: 8px; padding: 14px 18px;")
-        b_l = QVBoxLayout(banner)
+        banner.setStyleSheet("""
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0F766E, stop:1 #094E48);
+                border-radius: 8px;
+                padding: 10px 16px;
+            }
+        """)
+        b_l = QHBoxLayout(banner)
+        b_l.setContentsMargins(4, 4, 4, 4)
+        
+        text_layout = QVBoxLayout()
+        text_layout.setSpacing(2)
         t_l = QLabel("🏥 Referring Physicians Directory")
-        t_l.setStyleSheet("color: white; font-size: 16px; font-weight: 700;")
+        t_l.setStyleSheet("color: white; font-size: 17px; font-weight: 700;")
         s_l = QLabel("Manage outpatient referral centers, primary care clinics, and automated report dispatch.")
         s_l.setStyleSheet("color: #CCFBF1; font-size: 12px;")
-        b_l.addWidget(t_l)
-        b_l.addWidget(s_l)
+        text_layout.addWidget(t_l)
+        text_layout.addWidget(s_l)
+        b_l.addLayout(text_layout)
+        
+        b_l.addStretch()
         layout.addWidget(banner)
         
         table = QTableWidget()
@@ -35,6 +60,9 @@ class ReferrersDialog(QDialog):
         table.setHorizontalHeaderLabels(["Referrer Name", "Practice / Hospital", "Phone", "Email / Direct Portal", "Auto-Fax/EHR"])
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
         
         refs = [
             ("Dr. Arthur Morgan", "Metropolitan Family Practice", "+1 (555) 392-1092", "direct@metrofamily.org", "HL7 / FHIR"),
@@ -47,7 +75,7 @@ class ReferrersDialog(QDialog):
             for c, val in enumerate(ref):
                 it = QTableWidgetItem(val)
                 table.setItem(r, c, it)
-        layout.addWidget(table)
+        layout.addWidget(table, 1)
         
         btn_box = QHBoxLayout()
         add_btn = QPushButton("➕ Add Referrer")
@@ -57,7 +85,7 @@ class ReferrersDialog(QDialog):
         
         btn_box.addStretch()
         close_btn = QPushButton("Close")
-        close_btn.setStyleSheet("background: #0F172A; color: white; border-radius: 6px; padding: 8px 20px;")
+        close_btn.setStyleSheet("background: #0F172A; color: white; border-radius: 6px; padding: 8px 20px; font-weight: 600;")
         close_btn.clicked.connect(self.accept)
         btn_box.addWidget(close_btn)
         layout.addLayout(btn_box)

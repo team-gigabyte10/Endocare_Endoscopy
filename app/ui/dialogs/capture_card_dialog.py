@@ -4,20 +4,30 @@ from PySide6.QtWidgets import (
     QLineEdit, QComboBox, QMessageBox
 )
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 
 
 class CaptureCardDialog(QDialog):
     """
-    Dialog for managing Endoscopy Capture Card Library hardware configurations,
+    Workstation for managing Endoscopy Capture Card Library hardware configurations,
     SDI/HDMI frame grabbers, pedal triggers, and video resolutions.
     """
     def __init__(self, mode="library", parent=None):
         super().__init__(parent)
         self.mode = mode
         self.setWindowTitle("Endocare • Capture Card Library Manager")
+        self.setWindowState(Qt.WindowFullScreen)
+        self.setWindowFlags(Qt.Window | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         self.setMinimumSize(820, 520)
-        self.resize(860, 560)
+        
+        QShortcut(QKeySequence(Qt.Key_F11), self, self._toggle_fullscreen)
         self._init_ui()
+
+    def _toggle_fullscreen(self):
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
         
     def _init_ui(self):
         layout = QVBoxLayout(self)

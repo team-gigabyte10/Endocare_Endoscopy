@@ -548,10 +548,14 @@ class MainWindow(QMainWindow):
 
     def _open_capture_cards(self, mode="library"):
         dlg = CaptureCardDialog(mode=mode, parent=self)
+        dlg.showFullScreen()
         dlg.exec()
 
     def _open_capture_window(self):
         from app.ui.capture_window import CaptureWindow
         dlg = CaptureWindow(parent=self)
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen:
+            dlg.setGeometry(screen.geometry())
         dlg.showFullScreen()
         dlg.exec()
