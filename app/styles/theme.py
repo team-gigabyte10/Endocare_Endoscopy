@@ -312,6 +312,35 @@ def get_stylesheet() -> str:
         background-color: #FAFCFE;
     }}
     
+    QComboBox QAbstractItemView {{
+        background-color: #FFFFFF;
+        color: {Colors.TEXT_MAIN};
+        border: 1.5px solid {Colors.PRIMARY};
+        border-radius: 6px;
+        selection-background-color: {Colors.PRIMARY};
+        selection-color: #FFFFFF;
+        outline: none;
+        padding: 4px;
+    }}
+    
+    QComboBox QAbstractItemView::item {{
+        min-height: 26px;
+        padding: 4px 10px;
+        color: {Colors.TEXT_MAIN};
+        background-color: #FFFFFF;
+        border-radius: 4px;
+    }}
+    
+    QComboBox QAbstractItemView::item:hover {{
+        background-color: {Colors.PRIMARY_LIGHT};
+        color: {Colors.PRIMARY};
+    }}
+    
+    QComboBox QAbstractItemView::item:selected {{
+        background-color: {Colors.PRIMARY};
+        color: #FFFFFF;
+    }}
+    
     /* Tables */
     QTableWidget {{
         background-color: #FFFFFF;

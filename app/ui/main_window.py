@@ -519,36 +519,36 @@ class MainWindow(QMainWindow):
     def _open_new_patient(self):
         from app.ui.workstation_window import WorkstationWindow
         dlg = WorkstationWindow(initial_module="new_patient", parent=self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _open_archive(self):
         from app.ui.dialogs.archive_dialog import ArchiveDialog
         dlg = ArchiveDialog(parent=self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _open_doctors(self):
         from app.ui.workstation_window import WorkstationWindow
         dlg = WorkstationWindow(initial_module="doctors", parent=self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _open_referrers(self):
         from app.ui.workstation_window import WorkstationWindow
         dlg = WorkstationWindow(initial_module="referrers", parent=self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _open_templates(self):
         from app.ui.workstation_window import WorkstationWindow
         dlg = WorkstationWindow(initial_module="templates", parent=self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _open_capture_cards(self, mode="library"):
         dlg = CaptureCardDialog(mode=mode, parent=self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _open_capture_window(self):
@@ -556,6 +556,6 @@ class MainWindow(QMainWindow):
         dlg = CaptureWindow(parent=self)
         screen = self.screen() or QApplication.primaryScreen()
         if screen:
-            dlg.setGeometry(screen.geometry())
-        dlg.showFullScreen()
+            dlg.setGeometry(screen.availableGeometry())
+        dlg.showMaximized()
         dlg.exec()

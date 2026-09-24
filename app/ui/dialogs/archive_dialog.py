@@ -199,7 +199,7 @@ class ArchiveDialog(QDialog):
         if self.isFullScreen():
             self.showNormal()
         else:
-            self.showFullScreen()
+            self.showMaximized()
 
     def _init_data(self):
         from app.services.database import DatabaseService
@@ -288,6 +288,7 @@ class ArchiveDialog(QDialog):
         self.table.setColumnWidth(7, 165)  # Referrers
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.itemSelectionChanged.connect(self._on_table_row_selected)
+        self.table.cellDoubleClicked.connect(lambda r, c: self._show_report_modal())
         
         card_layout.addWidget(self.table, stretch=4)
         
@@ -714,7 +715,7 @@ class ArchiveDialog(QDialog):
     def _open_new_patient(self):
         from app.ui.dialogs.new_patient_dialog import NewPatientDialog
         dlg = NewPatientDialog(self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _open_capture_for_selected_patient(self):
@@ -724,7 +725,7 @@ class ArchiveDialog(QDialog):
             patient = self._current_filtered[row]
         from app.ui.capture_window import CaptureWindow
         dlg = CaptureWindow(patient_data=patient, parent=self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _show_report_modal(self):
@@ -733,8 +734,9 @@ class ArchiveDialog(QDialog):
             QMessageBox.warning(self, "Notice", "Please select a patient from the table to view the report.")
             return
         rec = self._current_filtered[row]
-        dlg = DiagnosticReportModal(rec, self)
-        dlg.exec()
+        from app.ui.report_window import ProcedureReportWindow
+        self.report_window = ProcedureReportWindow(patient_record=rec, parent=None)
+        self.report_window.showMaximized()
 
     def _show_image_plus_modal(self):
         row = self.table.currentRow()

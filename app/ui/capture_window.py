@@ -15,6 +15,7 @@ Features:
 
 import os
 import sys
+import subprocess
 import time
 import math
 import datetime
@@ -203,6 +204,9 @@ class LiveVideoViewport(QLabel):
         self._is_recording = False
         self._record_writer = None
         self._record_path = None
+        self._record_w = 1280
+        self._record_h = 720
+        self._frames_written = 0
         self._patient_info = {}
 
         # Last received camera frame
@@ -227,7 +231,28 @@ class LiveVideoViewport(QLabel):
         self._latest_cv_frame = frame
         if self._is_recording and self._record_writer is not None:
             try:
-                self._record_writer.write(frame)
+                rec_frame = frame.copy()
+                if self.filter_crop_onthefly:
+                    ch_h, ch_w = rec_frame.shape[:2]
+                    cy = int(ch_h * 0.04)
+                    cx = int(ch_w * 0.04)
+                    if cy > 0 and cx > 0:
+                        rec_frame = rec_frame[cy:ch_h - cy, cx:ch_w - cx]
+                if self.filter_invert_gray:
+                    gray = cv2.cvtColor(rec_frame, cv2.COLOR_BGR2GRAY)
+                    inv = cv2.bitwise_not(gray)
+                    rec_frame = cv2.cvtColor(inv, cv2.COLOR_GRAY2BGR)
+
+                if self.brightness != 50 or self.contrast != 50:
+                    alpha = self.contrast / 50.0
+                    beta = (self.brightness - 50) * 2.0
+                    rec_frame = np.clip(alpha * rec_frame.astype(np.float32) + beta, 0, 255).astype(np.uint8)
+
+                if rec_frame.shape[1] != self._record_w or rec_frame.shape[0] != self._record_h:
+                    rec_frame = cv2.resize(rec_frame, (self._record_w, self._record_h))
+
+                self._record_writer.write(rec_frame)
+                self._frames_written += 1
             except Exception:
                 pass
 
@@ -283,17 +308,60 @@ class LiveVideoViewport(QLabel):
 
     def _on_tick(self):
         self._sim_tick += 1
+        if self._is_recording and self._record_writer is not None and self._latest_cv_frame is None:
+            try:
+                qimg = self.grab_current_frame()
+                if not qimg.isNull():
+                    if qimg.format() not in (QImage.Format_RGB32, QImage.Format_ARGB32):
+                        qimg = qimg.convertToFormat(QImage.Format_RGB32)
+                    arr = np.frombuffer(qimg.bits(), dtype=np.uint8).reshape((qimg.height(), qimg.width(), 4))
+                    bgr_frame = cv2.cvtColor(arr, cv2.COLOR_BGRA2BGR)
+                    if bgr_frame.shape[1] != self._record_w or bgr_frame.shape[0] != self._record_h:
+                        bgr_frame = cv2.resize(bgr_frame, (self._record_w, self._record_h))
+                    self._record_writer.write(bgr_frame)
+                    self._frames_written += 1
+            except Exception:
+                pass
         self.update()
 
     def start_recording(self, output_path: str):
         self._record_path = output_path
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        self._record_writer = cv2.VideoWriter(output_path, fourcc, 30.0, (640, 480))
+        self._frames_written = 0
+
+        # Match camera dimensions if available, or default to 1280x720 HD
+        if self._latest_cv_frame is not None:
+            h, w = self._latest_cv_frame.shape[:2]
+        else:
+            w, h = 1280, 720
+        self._record_w = w
+        self._record_h = h
+
+        # Universally supported MJPG for .avi on Windows, or mp4v for .mp4
+        if output_path.lower().endswith(".mp4"):
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        else:
+            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+
+        self._record_writer = cv2.VideoWriter(output_path, fourcc, 30.0, (w, h))
         self._is_recording = True
 
     def stop_recording(self) -> Optional[str]:
         self._is_recording = False
         if self._record_writer:
+            if getattr(self, '_frames_written', 0) == 0:
+                try:
+                    qimg = self.grab_current_frame()
+                    if not qimg.isNull():
+                        if qimg.format() not in (QImage.Format_RGB32, QImage.Format_ARGB32):
+                            qimg = qimg.convertToFormat(QImage.Format_RGB32)
+                        arr = np.frombuffer(qimg.bits(), dtype=np.uint8).reshape((qimg.height(), qimg.width(), 4))
+                        bgr_frame = cv2.cvtColor(arr, cv2.COLOR_BGRA2BGR)
+                        if bgr_frame.shape[1] != self._record_w or bgr_frame.shape[0] != self._record_h:
+                            bgr_frame = cv2.resize(bgr_frame, (self._record_w, self._record_h))
+                        for _ in range(15):
+                            self._record_writer.write(bgr_frame)
+                except Exception:
+                    pass
             try:
                 self._record_writer.release()
             except Exception:
@@ -498,18 +566,20 @@ class CaptureWindow(QDialog):
 
     def _apply_screen_geometry(self):
         screen = QApplication.primaryScreen()
-        if screen:
-            self.setGeometry(screen.geometry())
-        self.setWindowState(Qt.WindowFullScreen)
+        avail = screen.availableGeometry() if screen else None
+        if avail:
+            self.setGeometry(avail)
+        self.showMaximized()
 
     def showEvent(self, event):
         super().showEvent(event)
         if not getattr(self, '_initial_show_done', False):
             self._initial_show_done = True
             screen = self.screen() or QApplication.primaryScreen()
-            if screen:
-                self.setGeometry(screen.geometry())
-            self.showFullScreen()
+            avail = screen.availableGeometry() if screen else None
+            if avail:
+                self.setGeometry(avail)
+            self.showMaximized()
             if hasattr(self, 'btn_win_max'):
                 self.btn_win_max.setText("🗗")
                 self.btn_win_max.setToolTip("Restore Down")
@@ -1671,9 +1741,10 @@ class CaptureWindow(QDialog):
         else:
             self._normal_geometry = self.geometry()
             screen = self.screen() or QApplication.primaryScreen()
-            if screen:
-                self.setGeometry(screen.geometry())
-            self.showFullScreen()
+            avail = screen.availableGeometry() if screen else None
+            if avail:
+                self.setGeometry(avail)
+            self.showMaximized()
             if hasattr(self, 'btn_win_max'):
                 self.btn_win_max.setText("🗗")
                 self.btn_win_max.setToolTip("Restore Down")
@@ -1718,7 +1789,21 @@ class CaptureWindow(QDialog):
                     border-radius: 3px;
                 }
             """)
-            QMessageBox.information(self, "Video Recorded", f"✓ Procedure video archived to:\n{saved_path}")
+            if saved_path:
+                norm_path = os.path.normpath(saved_path)
+                try:
+                    if os.path.exists(norm_path):
+                        subprocess.Popen(f'explorer /select,"{norm_path}"')
+                    else:
+                        folder = os.path.dirname(norm_path)
+                        if os.path.exists(folder):
+                            subprocess.Popen(f'explorer "{folder}"')
+                except Exception:
+                    try:
+                        folder = os.path.dirname(norm_path)
+                        os.startfile(folder)
+                    except Exception:
+                        pass
 
     def _handle_open_video(self):
         if not self.viewport._cap_thread.isRunning():
@@ -2006,13 +2091,13 @@ class CaptureWindow(QDialog):
     def _open_archive(self):
         from app.ui.dialogs.archive_dialog import ArchiveDialog
         dlg = ArchiveDialog(parent=self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _open_new_patient(self):
         from app.ui.dialogs.new_patient_dialog import NewPatientDialog
         dlg = NewPatientDialog(parent=self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         if dlg.exec() == QDialog.Accepted:
             latest = self.db.get_patients(limit=1)
             if latest:

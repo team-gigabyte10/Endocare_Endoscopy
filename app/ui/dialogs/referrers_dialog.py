@@ -23,7 +23,7 @@ class ReferrersDialog(QDialog):
         if self.isFullScreen():
             self.showNormal()
         else:
-            self.showFullScreen()
+            self.showMaximized()
         
     def _init_ui(self):
         layout = QVBoxLayout(self)

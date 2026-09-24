@@ -48,14 +48,18 @@ class WorkstationWindow(QDialog):
         self.set_module(initial_module)
 
     def _toggle_fullscreen(self):
-        if self.isFullScreen():
+        if self.isMaximized() or self.isFullScreen():
             self.showNormal()
         else:
-            self.showFullScreen()
+            self._apply_safe_screen_geometry()
 
     def _apply_safe_screen_geometry(self):
-        """Initializes the clinical workstation in Full Screen mode."""
-        self.setWindowState(Qt.WindowFullScreen)
+        """Strictly respects Windows desktop taskbar (bottom bar) geometry."""
+        screen = QApplication.primaryScreen()
+        avail = screen.availableGeometry() if screen else None
+        if avail:
+            self.setGeometry(avail)
+        self.showMaximized()
 
     def _init_ui(self):
         root = QFrame(self)
@@ -227,7 +231,7 @@ class WorkstationWindow(QDialog):
         if module_name == "archive":
             from app.ui.dialogs.archive_dialog import ArchiveDialog
             dlg = ArchiveDialog(parent=self)
-            dlg.showFullScreen()
+            dlg.showMaximized()
             dlg.exec()
             return
 
@@ -281,7 +285,7 @@ class WorkstationWindow(QDialog):
         self.accept()
         from app.ui.capture_window import CaptureWindow
         dlg = CaptureWindow(parent=parent_w)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _confirm_exit(self):
@@ -597,7 +601,7 @@ class NewPatientCardWidget(QFrame):
             self.workstation.close_workstation()
             from app.ui.capture_window import CaptureWindow
             cap_dlg = CaptureWindow(patient_data=patient_data, parent=parent_w)
-            cap_dlg.showFullScreen()
+            cap_dlg.showMaximized()
             cap_dlg.exec()
         elif action == PatientAddedSuccessDialog.ACTION_STANDBY:
             # Leaves patient on standby and returns to launcher
@@ -1060,7 +1064,7 @@ class ArchiveCardWidget(QFrame):
         self.workstation.close_workstation()
         from app.ui.capture_window import CaptureWindow
         dlg = CaptureWindow(patient_data=pat, parent=parent_w)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
 

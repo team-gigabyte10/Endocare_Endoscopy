@@ -34,7 +34,7 @@ class DoctorsDialog(QDialog):
         if self.isFullScreen():
             self.showNormal()
         else:
-            self.showFullScreen()
+            self.showMaximized()
 
     def _init_data(self):
         self.doctors = [
@@ -526,25 +526,25 @@ class DoctorsDialog(QDialog):
     def _open_new_patient(self):
         from app.ui.dialogs.new_patient_dialog import NewPatientDialog
         dlg = NewPatientDialog(self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _open_archive(self):
         from app.ui.dialogs.archive_dialog import ArchiveDialog
         dlg = ArchiveDialog(self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _open_referrers(self):
         from app.ui.dialogs.referrers_dialog import ReferrersDialog
         dlg = ReferrersDialog(self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _open_templates(self):
         from app.ui.dialogs.templates_dialog import TemplatesDialog
         dlg = TemplatesDialog(self)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _handle_back_to_capture(self):
@@ -552,7 +552,7 @@ class DoctorsDialog(QDialog):
         self.accept()
         from app.ui.capture_window import CaptureWindow
         dlg = CaptureWindow(parent=parent_w)
-        dlg.showFullScreen()
+        dlg.showMaximized()
         dlg.exec()
 
     def _confirm_exit(self):
