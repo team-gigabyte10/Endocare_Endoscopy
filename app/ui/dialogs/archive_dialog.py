@@ -740,6 +740,7 @@ class ArchiveDialog(QDialog):
 
     def _show_image_plus_modal(self):
         row = self.table.currentRow()
-        name = self._current_filtered[row].get("name", "Patient") if (0 <= row < len(self._current_filtered)) else "Patient"
-        dlg = ImagePlusModal(name, self)
-        dlg.exec()
+        rec = self._current_filtered[row] if (0 <= row < len(self._current_filtered)) else None
+        from app.ui.image_plus_window import ImagePlusWindow
+        self.image_plus_win = ImagePlusWindow(patient_record=rec, parent=None)
+        self.image_plus_win.show_maximized_clean()

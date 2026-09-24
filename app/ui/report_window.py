@@ -1559,10 +1559,17 @@ class ProcedureReportWindow(QWidget):
         dlg.exec()
 
     def _open_image_plus(self):
-        from app.ui.dialogs.archive_dialog import ImagePlusModal
-        name = self.input_name.text().strip() or "Patient"
-        dlg = ImagePlusModal(name, self)
-        dlg.exec()
+        from app.ui.image_plus_window import ImagePlusWindow
+        rec = getattr(self, "patient_record", None) or {
+            "id": self.input_id.text(),
+            "mrn": self.input_mrn.text(),
+            "name": self.input_name.text(),
+            "age": self.input_age.text(),
+            "sex": self.input_sex.text(),
+            "date": self.date_visit.text(),
+        }
+        self.image_plus_win = ImagePlusWindow(patient_record=rec, parent=None)
+        self.image_plus_win.show_maximized_clean()
 
     def _back_to_capture(self):
         """Closes report and launches Capture Workstation for this patient."""
