@@ -195,8 +195,8 @@ class LiveVideoViewport(QLabel):
         # Filter states
         self.filter_vessel_plus = False   # (F9) Vessel+ NBI cyan/green boost
         self.filter_vision_x = False      # (F8) Vision X contrast/sharpness
-        self.filter_crop_onthefly = True  # OnTheFly cropping
-        self.filter_invert_gray = True    # GrayScale-Pixels Inverter (checked in 003705)
+        self.filter_crop_onthefly = False  # OnTheFly cropping (unchecked default)
+        self.filter_invert_gray = False    # GrayScale-Pixels Inverter (unchecked default)
 
         # Hardware feed state
         self._sim_tick = 0
@@ -650,6 +650,7 @@ class CaptureWindow(QDialog):
         self._build_bottom_adjustment_bar(body_layout)
 
         main_layout.addWidget(body_widget, 1)
+        self._sync_filters()
 
     def _build_title_bar(self, parent_layout: QVBoxLayout):
         """
@@ -791,11 +792,11 @@ class CaptureWindow(QDialog):
         chk_box.setSpacing(2)
         chk_box.setAlignment(Qt.AlignVCenter)
         self.chk_crop = QCheckBox("OnTheFly Image Cropping")
-        self.chk_crop.setChecked(True)
+        self.chk_crop.setChecked(False)
         self.chk_crop.toggled.connect(self._sync_filters)
 
         self.chk_invert = QCheckBox("GrayScale-Pixels Inverter")
-        self.chk_invert.setChecked(True)  # Checked in 003705
+        self.chk_invert.setChecked(False)
         self.chk_invert.toggled.connect(self._sync_filters)
 
         self.chk_auto_capture = QCheckBox("Automatic Image Capture")
@@ -1216,10 +1217,10 @@ class CaptureWindow(QDialog):
         center_lay.addWidget(vp_container, 1)
 
         # === C. RIGHT COLUMN: Live Reporting Panel ===
-        # Open by default matching Demo/Screenshot 2026-09-20 003705.png
+        # Hidden by default
         self.reporting_panel = QFrame()
         self.reporting_panel.setFixedWidth(460)
-        self.reporting_panel.setVisible(True)
+        self.reporting_panel.setVisible(False)
         self.reporting_panel.setObjectName("reportingPanel")
         self.reporting_panel.setStyleSheet("""
             QFrame#reportingPanel {
