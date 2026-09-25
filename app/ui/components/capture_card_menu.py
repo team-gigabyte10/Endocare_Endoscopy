@@ -32,8 +32,13 @@ class CaptureCardDropdown(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         
         # Display the actual connected USB capture card in the button label
-        device_name = self.primary_device.get("name", "USB2 Video")
-        self.btn = QPushButton(f"📹 Capture Card: {device_name} [Active]  ▾")
+        if self.primary_device:
+            device_name = self.primary_device.get("name", "USB Video Device")
+            btn_title = f"📹 Capture Card: {device_name} [Active]  ▾"
+        else:
+            btn_title = "📹 Capture Card: No Card Detected [Unplugged]  ▾"
+            
+        self.btn = QPushButton(btn_title)
         self.btn.setObjectName("captureCardDropdownBtn")
         self.btn.setCursor(QCursor(Qt.PointingHandCursor))
         self.btn.setStyleSheet("""
@@ -62,13 +67,18 @@ class CaptureCardDropdown(QWidget):
         self.menu = QMenu(self)
         
         # 1. SHOW THE CONNECTED USB CAPTURE CARD PROMINENTLY AT TOP
-        for dev in self.devices:
-            dev_title = dev.get("name", "USB2 Video")
-            dev_res = dev.get("resolution", "1080p @ 60fps")
-            action_connected = QAction(f"🟢 {dev_title} (USB Port) • {dev_res} [Connected]", self)
-            action_connected.setToolTip(f"Live hardware capture feed from {dev_title}")
-            action_connected.triggered.connect(lambda checked=False, d=dev: self._on_device_clicked(d))
-            self.menu.addAction(action_connected)
+        if self.devices:
+            for dev in self.devices:
+                dev_title = dev.get("name", "USB Video Device")
+                dev_res = dev.get("resolution", "1080p @ 60fps")
+                action_connected = QAction(f"🟢 {dev_title} (USB Port) • {dev_res} [Connected]", self)
+                action_connected.setToolTip(f"Live hardware capture feed from {dev_title}")
+                action_connected.triggered.connect(lambda checked=False, d=dev: self._on_device_clicked(d))
+                self.menu.addAction(action_connected)
+        else:
+            action_unplugged = QAction("⚠️ No Physical Capture Card Detected (Unplugged)", self)
+            action_unplugged.setEnabled(False)
+            self.menu.addAction(action_unplugged)
             
         self.menu.addSeparator()
         

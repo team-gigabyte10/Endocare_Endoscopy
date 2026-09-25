@@ -137,13 +137,31 @@ class CaptureCardDialog(QDialog):
         layout.addLayout(btn_box)
 
     def _load_cards(self):
-        cards_data = [
-            ("USB2 Video (Physical USB Capture Card)", "USB Port 1", "USB 3.0 / DirectShow", "1920×1080 @ 60fps", "Hardware Sync / Pedal", "● Active"),
-            ("Olympus EVIS X1 - Ultra HD PCIe", "Suite 1 (Video 1)", "12G-SDI / HDMI 2.0", "3840×2160 @ 60fps", "USB Dual Foot Pedal", "● Active"),
-            ("Pentax Medical OPTIVISTA EPK-i7010", "Suite 2 (Video 1)", "3G-SDI / DVI-D", "1920×1080 @ 60fps", "Scope Head Button 1", "● Active"),
-            ("Fujifilm ELUXEO 7000 System", "Suite 3 (Video 1)", "HDMI / USB 3.1", "1920×1080 @ 60fps", "Foot Pedal & Keyboard", "● Standby"),
-            ("Blackmagic DeckLink 4K Pro (Backup)", "Auxiliary Suite", "Quad SDI / Genlock", "3840×2160 @ 30fps", "Manual / Remote DICOM", "● Ready"),
-        ]
+        from app.services.device_manager import CaptureDeviceManager
+        devices = CaptureDeviceManager.get_connected_devices()
+        cards_data = []
+        for idx, dev in enumerate(devices):
+            name = dev.get("name", "USB2 Video")
+            res = dev.get("resolution", "1920×1080 @ 60fps")
+            port = dev.get("port", f"USB Port {idx + 1}")
+            cards_data.append((
+                f"{name} (Physical Capture Card)",
+                port,
+                "USB 3.0 / DirectShow",
+                res,
+                "Scope Button / Middle Click / Pedal",
+                "● Active"
+            ))
+        if not cards_data:
+            cards_data.append((
+                "No Physical Capture Card Detected",
+                "—",
+                "DirectShow",
+                "—",
+                "—",
+                "● Offline"
+            ))
+
         self.table.setRowCount(len(cards_data))
         for row, data in enumerate(cards_data):
             for col, text in enumerate(data):

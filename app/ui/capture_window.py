@@ -30,7 +30,10 @@ from PySide6.QtWidgets import (
     QTextEdit, QToolButton, QMessageBox, QFileDialog, QApplication,
     QSizePolicy, QMenu, QScrollBar
 )
-from PySide6.QtCore import Qt, QTimer, QTime, QRect, QPoint, QSize, Signal, QThread, QEvent
+import ctypes
+import winsound
+
+from PySide6.QtCore import Qt, QTimer, QTime, QRect, QPoint, QSize, Signal, QThread, QEvent, QObject
 from PySide6.QtGui import (
     QImage, QPixmap, QColor, QFont, QPainter, QPen, QBrush,
     QRadialGradient, QLinearGradient, QTextListFormat, QKeySequence,
@@ -40,6 +43,23 @@ from PySide6.QtGui import (
 from app.services.database import DatabaseService
 from app.core.paths import get_asset_path, get_captures_dir
 from app.services.device_manager import CaptureDeviceManager
+
+
+class BronchoscopeEventFilter(QObject):
+    """
+    Application-level event filter that intercepts physical Bronchoscope remote capture pulses.
+    Olympus and medical video scopes send a middle mouse button pulse (Qt.MiddleButton / VK_MBUTTON).
+    """
+    def __init__(self, trigger_callback, parent=None):
+        super().__init__(parent)
+        self.trigger_callback = trigger_callback
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.MouseButtonPress:
+            if event.button() == Qt.MiddleButton:
+                self.trigger_callback("qt_middle_click")
+                return True  # Consume event to prevent Windows autoscroll circle
+        return super().eventFilter(obj, event)
 
 
 class HomeButton(QPushButton):
@@ -139,6 +159,7 @@ class VideoCaptureThread(QThread):
 
     def run(self):
         self._running = True
+        CaptureDeviceManager.device_in_use = True
         try:
             self._cap = cv2.VideoCapture(self.device_index, cv2.CAP_DSHOW)
             if self._cap.isOpened():
@@ -158,6 +179,7 @@ class VideoCaptureThread(QThread):
             else:
                 self.msleep(50)
 
+        CaptureDeviceManager.device_in_use = False
         if self._cap:
             try:
                 self._cap.release()
@@ -167,6 +189,7 @@ class VideoCaptureThread(QThread):
 
     def stop(self):
         self._running = False
+        CaptureDeviceManager.device_in_use = False
         self.wait(400)
 
 
@@ -177,6 +200,7 @@ class LiveVideoViewport(QLabel):
     with authentic fallback to clinical standby HUD or clinical tissue simulation.
     """
     frame_captured = Signal(QImage)
+    scope_middle_click_signal = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -222,6 +246,12 @@ class LiveVideoViewport(QLabel):
         self._cap_thread = VideoCaptureThread(device_index=0, parent=self)
         self._cap_thread.frame_ready.connect(self._on_new_camera_frame)
         self._cap_thread.start()
+
+        # OSD Toast notification on capture (Phase 2)
+        self._osd_text = ""
+        self._osd_timer = QTimer(self)
+        self._osd_timer.setSingleShot(True)
+        self._osd_timer.timeout.connect(self._clear_osd)
 
         # 30-40 FPS Render loop
         self._render_timer = QTimer(self)
@@ -299,6 +329,24 @@ class LiveVideoViewport(QLabel):
         if not self._flash_timer.isActive():
             self._flash_timer.start(25)
         self.update()
+
+    def show_osd(self, text: str, duration_ms: int = 1500):
+        """Displays temporary glowing HUD pill on the video screen."""
+        self._osd_text = text
+        self._osd_timer.start(duration_ms)
+        self.update()
+
+    def _clear_osd(self):
+        self._osd_text = ""
+        self.update()
+
+    def mousePressEvent(self, event):
+        """Intercepts direct middle click on the live video viewport."""
+        if event.button() == Qt.MiddleButton:
+            self.scope_middle_click_signal.emit()
+            event.accept()
+            return
+        super().mousePressEvent(event)
 
     def _decay_flash(self):
         self._flash_opacity -= 0.14
@@ -482,6 +530,36 @@ class LiveVideoViewport(QLabel):
             alpha = int(self._flash_opacity * 255)
             painter.fillRect(0, 0, w, h, QColor(255, 255, 255, alpha))
 
+        # 8. On-Screen Display (OSD) Toast Badge (Phase 2)
+        if self._osd_text:
+            painter.save()
+            osd_font = QFont("Segoe UI", 12, QFont.Bold)
+            painter.setFont(osd_font)
+            metrics = painter.fontMetrics()
+            text_w = metrics.horizontalAdvance(self._osd_text) + 38
+            text_h = 36
+            osd_rect = QRect((w - text_w) // 2, 22, text_w, text_h)
+
+            # Capsule background
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(15, 23, 42, 225))
+            painter.drawRoundedRect(osd_rect, 18, 18)
+
+            # Emerald accent border
+            painter.setPen(QPen(QColor("#10B981"), 1.8))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRoundedRect(osd_rect, 18, 18)
+
+            # Glowing green dot
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor("#10B981"))
+            painter.drawEllipse(osd_rect.x() + 14, osd_rect.y() + (text_h - 10) // 2, 10, 10)
+
+            # Badge text
+            painter.setPen(QColor("#FFFFFF"))
+            painter.drawText(QRect(osd_rect.x() + 30, osd_rect.y(), text_w - 36, text_h), Qt.AlignVCenter | Qt.AlignLeft, self._osd_text)
+            painter.restore()
+
     def grab_current_frame(self) -> QImage:
         """Captures the current viewport display as a clean, high-resolution QImage."""
         if self._latest_cv_frame is not None:
@@ -548,6 +626,9 @@ class CaptureWindow(QDialog):
         self._setup_shortcuts()
         self._load_patient_thumbnails()
 
+        # Connect Bronchoscope Remote Trigger (Middle Mouse Click Pulse)
+        self._init_bronchoscope_trigger()
+
     def _get_fallback_patient(self) -> Dict[str, Any]:
         """Returns the canonical patient from reference screenshot (Nayem Islam, ID 9)."""
         patients = self.db.get_patients(limit=15)
@@ -585,11 +666,21 @@ class CaptureWindow(QDialog):
                 self.btn_win_max.setToolTip("Restore Down")
 
     def closeEvent(self, event):
+        if hasattr(self, '_scope_poll_timer'):
+            self._scope_poll_timer.stop()
+        app_inst = QApplication.instance()
+        if app_inst and hasattr(self, '_scope_event_filter'):
+            app_inst.removeEventFilter(self._scope_event_filter)
         if hasattr(self, 'viewport'):
             self.viewport.stop_camera()
         super().closeEvent(event)
 
     def reject(self):
+        if hasattr(self, '_scope_poll_timer'):
+            self._scope_poll_timer.stop()
+        app_inst = QApplication.instance()
+        if app_inst and hasattr(self, '_scope_event_filter'):
+            app_inst.removeEventFilter(self._scope_event_filter)
         if hasattr(self, 'viewport'):
             self.viewport.stop_camera()
         super().reject()
@@ -1852,10 +1943,67 @@ class CaptureWindow(QDialog):
             }
         """)
 
-    def _handle_capture_image(self):
+    def _init_bronchoscope_trigger(self):
+        """Initializes hardware and application-level listeners for Bronchoscope button (Middle Click)."""
+        self._last_scope_capture_time = 0.0
+        self._scope_debounce_seconds = 0.40  # 400ms anti-chatter debounce
+        self._last_mbutton_state = False
+
+        # 1. Application-wide Qt Event Filter
+        self._scope_event_filter = BronchoscopeEventFilter(self._trigger_scope_capture, self)
+        app_inst = QApplication.instance()
+        if app_inst:
+            app_inst.installEventFilter(self._scope_event_filter)
+
+        # 2. Global Hardware Poller for VK_MBUTTON (0x04)
+        # Guarantees trigger even if cursor is outside video or on secondary screen
+        self._scope_poll_timer = QTimer(self)
+        self._scope_poll_timer.timeout.connect(self._poll_hardware_scope_trigger)
+        self._scope_poll_timer.start(28)  # 35Hz polling for instant response
+
+        # 3. Direct Viewport signal connection
+        if hasattr(self, 'viewport'):
+            self.viewport.scope_middle_click_signal.connect(lambda: self._trigger_scope_capture("viewport_middle_click"))
+
+    def _poll_hardware_scope_trigger(self):
+        """Polls Windows API for physical Bronchoscope button (VK_MBUTTON = 0x04)."""
+        if not self.isVisible() or self.isMinimized():
+            return
+        try:
+            # 0x04 = VK_MBUTTON (Middle mouse button)
+            state = ctypes.windll.user32.GetAsyncKeyState(0x04)
+            is_down = bool(state & 0x8000)
+            if is_down and not self._last_mbutton_state:
+                self._trigger_scope_capture("hardware_vk_mbutton")
+            self._last_mbutton_state = is_down
+        except Exception:
+            pass
+
+    def _trigger_scope_capture(self, source: str = "scope"):
+        """Triggers image capture from the Bronchoscope button with anti-chatter debounce."""
+        now = time.time()
+        if now - self._last_scope_capture_time < self._scope_debounce_seconds:
+            return  # Discard rapid bounce chatter
+        self._last_scope_capture_time = now
+        self._handle_capture_image(source=source)
+
+    def _play_shutter_chime(self):
+        """Plays non-blocking auditory shutter feedback confirmation (Phase 2)."""
+        try:
+            winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS | winsound.SND_ASYNC)
+        except Exception:
+            try:
+                winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            except Exception:
+                pass
+
+    def _handle_capture_image(self, source: Any = "manual"):
         """Captures frame from live viewport, saves to disk and database, and displays in tray."""
         frame_img = self.viewport.grab_current_frame()
         self.viewport.trigger_capture_flash()
+
+        # Phase 2: Auditory shutter chime confirmation
+        self._play_shutter_chime()
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         auto_id = str(self.patient_data.get("auto_id", "9"))
@@ -1880,6 +2028,11 @@ class CaptureWindow(QDialog):
         }
         self.captured_images.append(record)
         self._add_thumbnail_to_tray(record, highlight=True)
+
+        # Phase 2: Live HUD OSD Toast confirmation on live video
+        source_str = str(source).lower() if isinstance(source, str) else "capture"
+        tag_label = "Bronchoscope" if any(k in source_str for k in ("mbutton", "scope", "middle")) else "Capture"
+        self.viewport.show_osd(f"📷 {tag_label} Captured • Frame #{frame_idx:02d}")
 
     def _clear_tray(self):
         """Clears all thumbnail cards from the tray."""
@@ -2110,3 +2263,15 @@ class CaptureWindow(QDialog):
                     self.lbl_title_status.setText(f"● LIVE  [{pat_id}] {p.get('name', 'Nayem Islam')}")
                 self.viewport.set_patient_info(self.patient_data)
                 self._load_patient_thumbnails()
+
+    def closeEvent(self, event):
+        try:
+            if hasattr(self, 'viewport'):
+                if hasattr(self.viewport, '_cap_thread') and self.viewport._cap_thread:
+                    self.viewport._cap_thread.stop()
+                if hasattr(self.viewport, '_render_timer') and self.viewport._render_timer:
+                    self.viewport._render_timer.stop()
+            CaptureDeviceManager.device_in_use = False
+        except Exception:
+            pass
+        super().closeEvent(event)

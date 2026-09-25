@@ -5,8 +5,9 @@ from PySide6.QtWidgets import (
     QGridLayout, QLabel, QFrame, QPushButton, QComboBox,
     QToolButton, QMessageBox, QGraphicsDropShadowEffect, QDialog, QSizePolicy
 )
-from PySide6.QtCore import Qt, QPoint, QSize
+from PySide6.QtCore import Qt, QPoint, QSize, QTimer
 from PySide6.QtGui import QIcon, QPixmap, QColor, QFont, QCursor
+from PySide6.QtMultimedia import QMediaDevices
 
 from app.ui.dialogs.about_dialog import AboutDialog
 from app.ui.dialogs.capture_card_dialog import CaptureCardDialog
@@ -16,6 +17,16 @@ from app.ui.dialogs.doctors_dialog import DoctorsDialog
 from app.ui.dialogs.referrers_dialog import ReferrersDialog
 from app.ui.dialogs.templates_dialog import TemplatesDialog
 from app.core.paths import get_asset_path
+from app.services.device_manager import CaptureDeviceManager
+
+
+class CaptureCardComboBox(QComboBox):
+    """QComboBox that immediately refreshes available hardware grabbers when clicked/opened."""
+    def showPopup(self):
+        main_win = self.window()
+        if hasattr(main_win, "_populate_capture_cards"):
+            main_win._populate_capture_cards()
+        super().showPopup()
 
 
 class ImagePreviewModal(QDialog):
@@ -325,12 +336,20 @@ class MainWindow(QMainWindow):
         lbl_cc.setObjectName("captureCardLabel")
         capture_bar.addWidget(lbl_cc)
         
-        self.combo_capture = QComboBox()
+        self.combo_capture = CaptureCardComboBox()
         self.combo_capture.setObjectName("captureCardCombo")
-        self.combo_capture.addItem("1. USB2 Video (1080p @ 60 FPS)")
-        self.combo_capture.addItem("2. HDMI Medical Grabber (DirectShow)")
-        self.combo_capture.addItem("3. Olympus EVIS X1 Direct Stream")
         self.combo_capture.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self._media_devices = QMediaDevices(self)
+        self._media_devices.videoInputsChanged.connect(self._populate_capture_cards)
+        self._last_device_fingerprint = None
+        self._populate_capture_cards()
+        
+        # 1-second watchdog polling timer ensuring instant detection when USB is unplugged or plugged in
+        self._device_poll_timer = QTimer(self)
+        self._device_poll_timer.setInterval(1000)
+        self._device_poll_timer.timeout.connect(self._check_device_change)
+        self._device_poll_timer.start()
+        
         capture_bar.addWidget(self.combo_capture)
         
         btn_cc_settings = QToolButton()
@@ -546,6 +565,46 @@ class MainWindow(QMainWindow):
         dlg = WorkstationWindow(initial_module="templates", parent=self)
         dlg.showMaximized()
         dlg.exec()
+
+    def nativeEvent(self, eventType, message):
+        """Intercepts Windows WM_DEVICECHANGE (0x0219) for zero-latency USB hotplug detection."""
+        try:
+            if eventType == b"windows_generic_MSG":
+                from ctypes import wintypes
+                msg = wintypes.MSG.from_address(message.__int__())
+                if msg.message == 0x0219:  # WM_DEVICECHANGE
+                    self._check_device_change()
+        except Exception:
+            pass
+        return super().nativeEvent(eventType, message)
+
+    def _check_device_change(self):
+        """Checks if connected video hardware changed and updates UI if needed."""
+        devices = CaptureDeviceManager.get_connected_devices()
+        fingerprint = [(d.get("name"), d.get("id")) for d in devices]
+        if fingerprint != self._last_device_fingerprint:
+            self._last_device_fingerprint = fingerprint
+            self._update_capture_combo(devices)
+
+    def _populate_capture_cards(self):
+        """Populates the capture card dropdown with actually connected hardware devices."""
+        devices = CaptureDeviceManager.get_connected_devices()
+        self._last_device_fingerprint = [(d.get("name"), d.get("id")) for d in devices]
+        self._update_capture_combo(devices)
+
+    def _update_capture_combo(self, devices):
+        self.combo_capture.blockSignals(True)
+        self.combo_capture.clear()
+        if devices:
+            for idx, dev in enumerate(devices):
+                name = dev.get("name", "USB2 Video")
+                res = dev.get("resolution", "1080p @ 60fps")
+                self.combo_capture.addItem(f"{idx + 1}. {name} ({res})", userData=dev)
+            self.combo_capture.setEnabled(True)
+        else:
+            self.combo_capture.addItem("No Capture Card Detected (Unplugged)")
+            self.combo_capture.setEnabled(False)
+        self.combo_capture.blockSignals(False)
 
     def _open_capture_cards(self, mode="library"):
         dlg = CaptureCardDialog(mode=mode, parent=self)
