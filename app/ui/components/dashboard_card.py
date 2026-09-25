@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPixmap, QCursor
+from app.core.paths import get_asset_path
 
 
 class DashboardCard(QFrame):
@@ -58,7 +59,7 @@ class DashboardCard(QFrame):
         icon_layout.setContentsMargins(0, 0, 0, 0)
         
         icon_label = QLabel()
-        icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets", icon_file))
+        icon_path = get_asset_path(icon_file)
         if os.path.exists(icon_path):
             pix = QPixmap(icon_path).scaled(28, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             icon_label.setPixmap(pix)

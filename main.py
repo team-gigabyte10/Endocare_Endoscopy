@@ -14,11 +14,13 @@ from PySide6.QtGui import QIcon, QFont
 
 from app.ui.main_window import MainWindow
 from app.styles.theme import get_stylesheet
+from app.core.paths import get_asset_path, get_data_dir
 
 
 def main():
-    # Qt 6 handles high-DPI scaling automatically by default
-        
+    # Ensure persistent directories and initial database are initialized
+    get_data_dir()
+    
     app = QApplication(sys.argv)
     app.setApplicationName("Endocare")
     app.setOrganizationName("Endocare Medical Systems")
@@ -29,9 +31,12 @@ def main():
     app.setFont(font)
     
     # Application Window Icon
-    logo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "assets/logo.png"))
-    if os.path.exists(logo_path):
-        app.setWindowIcon(QIcon(logo_path))
+    logo_ico = get_asset_path("logo.ico")
+    logo_png = get_asset_path("logo.png")
+    if os.path.exists(logo_ico):
+        app.setWindowIcon(QIcon(logo_ico))
+    elif os.path.exists(logo_png):
+        app.setWindowIcon(QIcon(logo_png))
         
     # Apply modern medical stylesheet
     app.setStyleSheet(get_stylesheet())

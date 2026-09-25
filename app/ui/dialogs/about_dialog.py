@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 import os
 import platform
+from app.core.paths import get_asset_path
 
 
 class AboutDialog(QDialog):
@@ -47,7 +48,7 @@ class AboutDialog(QDialog):
         header_layout.setSpacing(16)
         
         logo_label = QLabel()
-        logo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets/logo.png"))
+        logo_path = get_asset_path("logo.png")
         if os.path.exists(logo_path):
             pix = QPixmap(logo_path).scaled(110, 40, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             logo_label.setPixmap(pix)

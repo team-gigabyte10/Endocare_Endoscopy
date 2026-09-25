@@ -46,3 +46,7 @@ $RECYCLE.BIN/
 # Local Clinical Database & Captures
 data/*.db*
 data/captures/
+
+# Installer output
+installer_output/
+

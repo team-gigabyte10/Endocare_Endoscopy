@@ -15,6 +15,7 @@ from app.ui.dialogs.archive_dialog import ArchiveDialog
 from app.ui.dialogs.doctors_dialog import DoctorsDialog
 from app.ui.dialogs.referrers_dialog import ReferrersDialog
 from app.ui.dialogs.templates_dialog import TemplatesDialog
+from app.core.paths import get_asset_path
 
 
 class ImagePreviewModal(QDialog):
@@ -93,7 +94,7 @@ class MainWindow(QMainWindow):
         self._drag_pos = QPoint()
         self._is_dragging = False
         
-        self._assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../assets"))
+        self._assets_dir = get_asset_path()
         self._init_ui()
 
     def _init_ui(self):

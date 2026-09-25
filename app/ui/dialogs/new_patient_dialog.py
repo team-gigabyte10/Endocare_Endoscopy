@@ -15,6 +15,7 @@ from app.ui.dialogs.archive_dialog import ArchiveDialog
 from app.ui.dialogs.doctors_dialog import DoctorsDialog
 from app.ui.dialogs.referrers_dialog import ReferrersDialog
 from app.ui.dialogs.templates_dialog import TemplatesDialog
+from app.core.paths import get_asset_path
 
 
 class NewPatientDialog(QDialog):
@@ -31,7 +32,7 @@ class NewPatientDialog(QDialog):
         
         QShortcut(QKeySequence(Qt.Key_F11), self, self._toggle_fullscreen)
         
-        self._assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets"))
+        self._assets_dir = get_asset_path()
         self._init_ui()
 
     def _toggle_fullscreen(self):

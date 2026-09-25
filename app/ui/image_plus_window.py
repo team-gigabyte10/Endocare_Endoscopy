@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.ui.report_window import CircularPresetButton, ClearCrossButton
+from app.core.paths import get_asset_path
 
 
 class ImagePlusSlotWidget(QFrame):
@@ -120,8 +121,7 @@ class ImagePlusWindow(QWidget):
         self.current_layout_preset = 4  # Default 4 images as shown in reference
         self.slots: List[ImagePlusSlotWidget] = []
 
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self._assets_dir = os.path.join(base_dir, "assets")
+        self._assets_dir = get_asset_path()
 
         self.setWindowTitle("EndoCare - Image Plus Report")
         self.setWindowIcon(QIcon(os.path.join(self._assets_dir, "logo.png")))

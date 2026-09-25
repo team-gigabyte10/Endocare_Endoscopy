@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QColor, QKeySequence, QShortcut
+from app.core.paths import get_asset_path
 
 
 
@@ -26,7 +27,7 @@ class DoctorsDialog(QDialog):
         
         QShortcut(QKeySequence(Qt.Key_F11), self, self._toggle_fullscreen)
         
-        self._assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets"))
+        self._assets_dir = get_asset_path()
         self._init_data()
         self._init_ui()
 

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QPixmap
+from app.core.paths import get_asset_path
 
 
 class HeaderBar(QFrame):
@@ -50,7 +51,7 @@ class HeaderBar(QFrame):
         badge_layout.setSpacing(0)
         
         self.logo_label = QLabel()
-        logo_img_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets/logo.png"))
+        logo_img_path = get_asset_path("logo.png")
         if os.path.exists(logo_img_path):
             pix = QPixmap(logo_img_path).scaled(140, 42, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.logo_label.setPixmap(pix)
@@ -100,7 +101,7 @@ class HeaderBar(QFrame):
         
         # User Icon / Avatar
         user_icon_label = QLabel()
-        user_icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets/user.svg"))
+        user_icon_path = get_asset_path("user.svg")
         if os.path.exists(user_icon_path):
             user_pix = QPixmap(user_icon_path).scaled(18, 18, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             user_icon_label.setPixmap(user_pix)
@@ -131,7 +132,7 @@ class HeaderBar(QFrame):
         self.settings_btn.setObjectName("headerButton")
         self.settings_btn.setToolTip("System Configuration & Settings")
         self.settings_btn.setCursor(Qt.PointingHandCursor)
-        settings_icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets/settings.svg"))
+        settings_icon_path = get_asset_path("settings.svg")
         if os.path.exists(settings_icon_path):
             self.settings_btn.setIcon(QIcon(settings_icon_path))
         else:

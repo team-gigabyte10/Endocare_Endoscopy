@@ -19,6 +19,7 @@ from PySide6.QtGui import (
     QPixmap, QColor, QFont, QTextCursor, QTextListFormat,
     QTextBlockFormat, QTextCharFormat, QKeySequence, QShortcut
 )
+from app.core.paths import get_asset_path
 
 
 class WorkstationWindow(QDialog):
@@ -33,7 +34,7 @@ class WorkstationWindow(QDialog):
         self.setWindowTitle("EndoCare 2.42 • Clinical Endoscopy Workstation")
         self.setWindowFlags(Qt.Window | Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         
-        self._assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../assets"))
+        self._assets_dir = get_asset_path()
         
         # Safe screen geometry: strictly respect Windows desktop taskbar bounds
         self._apply_safe_screen_geometry()

@@ -29,6 +29,35 @@ The application will launch immediately as a native Windows desktop GUI applicat
 
 ---
 
+## 📦 Building Windows Executable & Installer
+
+To distribute **Endocare** to client computers (without requiring Python to be installed):
+
+### 1. One-Click Build
+Run the automated build script:
+```cmd
+scripts\build_installer.bat
+```
+
+This performs the complete end-to-end pipeline:
+1. Runs **PyInstaller** using `endocare.spec` to compile the standalone binary and dependencies into `dist\Endocare\`.
+2. Resolves asset paths and persistent user database storage (`%LOCALAPPDATA%\Endocare\`).
+3. Invokes **Inno Setup 6** to generate the final setup executable:
+   ```
+   installer_output\Endocare_Setup_v2.42.exe
+   ```
+
+### 2. Installing on Client Computers
+1. Copy `Endocare_Setup_v2.42.exe` to a USB drive or client computer.
+2. Double-click to run the setup wizard.
+3. The wizard will create:
+   - Program Files installation (`C:\Program Files\Endocare`)
+   - Desktop Shortcut with crisp medical icon
+   - Start Menu entry
+   - Control Panel Uninstaller
+
+---
+
 ## 🖥️ User Interface & Requirements Mapping
 
 ### 1. Overall UI Style

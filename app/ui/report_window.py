@@ -26,6 +26,7 @@ from PySide6.QtGui import (
 )
 
 from app.services.database import DatabaseService
+from app.core.paths import get_asset_path, get_captures_dir
 
 
 class ClearCrossButton(QPushButton):
@@ -277,8 +278,8 @@ class ProcedureReportWindow(QWidget):
 
         self.db = DatabaseService.get_instance()
         self.patient_record = patient_record or self._get_fallback_patient()
-        self._assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../assets"))
-        self._captures_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/captures"))
+        self._assets_dir = get_asset_path()
+        self._captures_dir = get_captures_dir()
         
         self.current_layout_preset = 2  # Default to 2 images as shown in screenshot
         self.image_slots: List[ImageSlotWidget] = []

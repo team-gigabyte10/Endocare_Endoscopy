@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QColor, QPixmap, QKeySequence, QShortcut
+from app.core.paths import get_asset_path
 
 
 class DiagnosticReportModal(QDialog):
@@ -141,7 +142,7 @@ class ImagePlusModal(QDialog):
         # 3 Frame Preview Row
         f_row = QHBoxLayout()
         f_row.setSpacing(14)
-        assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets"))
+        assets_dir = get_asset_path()
         
         for f_name, tag in [("preview_ercp.png", "Frame 1 • Retrograde Fluoro"), 
                             ("preview_endo.png", "Frame 2 • Cecal Polyp (NBI)"), 

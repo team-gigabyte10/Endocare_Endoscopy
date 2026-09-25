@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIcon, QAction, QCursor
 
 from app.services.device_manager import CaptureDeviceManager
+from app.core.paths import get_asset_path
 
 
 class CaptureCardDropdown(QWidget):
@@ -53,7 +54,7 @@ class CaptureCardDropdown(QWidget):
         """)
         
         # Load Camera icon
-        camera_icon_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../assets/camera.svg"))
+        camera_icon_path = get_asset_path("camera.svg")
         if os.path.exists(camera_icon_path):
             self.btn.setIcon(QIcon(camera_icon_path))
             

@@ -4,6 +4,9 @@ import datetime
 from typing import List, Dict, Any, Optional
 
 
+from app.core.paths import get_db_path
+
+
 class DatabaseService:
     """
     High-Performance Desktop Clinical Database Service for Endocare Endoscopy.
@@ -25,9 +28,7 @@ class DatabaseService:
 
     def __init__(self, db_path: Optional[str] = None):
         if db_path is None:
-            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
-            os.makedirs(base_dir, exist_ok=True)
-            db_path = os.path.join(base_dir, "endocare.db")
+            db_path = get_db_path()
         self.db_path = db_path
         self._init_db()
 

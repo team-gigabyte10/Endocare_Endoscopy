@@ -38,6 +38,7 @@ from PySide6.QtGui import (
 )
 
 from app.services.database import DatabaseService
+from app.core.paths import get_asset_path, get_captures_dir
 from app.services.device_manager import CaptureDeviceManager
 
 
@@ -185,7 +186,7 @@ class LiveVideoViewport(QLabel):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setStyleSheet("background-color: #000000; border: none;")
 
-        self._assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../assets"))
+        self._assets_dir = get_asset_path()
         
         # Color adjustment parameters (0 to 100, default 50)
         self.brightness = 50
@@ -534,9 +535,8 @@ class CaptureWindow(QDialog):
         self.db = DatabaseService.get_instance()
         self.patient_data = patient_data or self._get_fallback_patient()
         
-        self._assets_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../assets"))
-        self._captures_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data/captures"))
-        os.makedirs(self._captures_dir, exist_ok=True)
+        self._assets_dir = get_asset_path()
+        self._captures_dir = get_captures_dir()
         
         self.captured_images: List[Dict[str, Any]] = []
         self._selected_card_widget = None
