@@ -24,6 +24,7 @@ from PySide6.QtGui import (
     QPainter, QPen, QBrush, QLinearGradient, QRadialGradient,
     QIcon, QPalette
 )
+from PySide6.QtPrintSupport import QPrinter, QPrintDialog
 
 from app.services.database import DatabaseService
 from app.core.paths import get_asset_path, get_captures_dir
@@ -501,9 +502,9 @@ class ProcedureReportWindow(QWidget):
         self.input_address2.setStyleSheet(addr_style)
         header_box.addWidget(self.input_address2)
 
-        lbl_disclaimer = QLabel("(This is Text Format area. Click to edit Center Name & Address)")
-        lbl_disclaimer.setAlignment(Qt.AlignCenter)
-        lbl_disclaimer.setStyleSheet("""
+        self.lbl_disclaimer = QLabel("(This is Text Format area. Click to edit Center Name & Address)")
+        self.lbl_disclaimer.setAlignment(Qt.AlignCenter)
+        self.lbl_disclaimer.setStyleSheet("""
             QLabel {
                 font-size: 10px;
                 font-style: italic;
@@ -513,7 +514,7 @@ class ProcedureReportWindow(QWidget):
                 border: none;
             }
         """)
-        header_box.addWidget(lbl_disclaimer)
+        header_box.addWidget(self.lbl_disclaimer)
         sheet_layout.addWidget(self.text_header_widget)
 
         # Clinic / Hospital Banner Widget (shown when chk_use_banner is checked)
@@ -1721,28 +1722,89 @@ class ProcedureReportWindow(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Save Error", f"Unable to update patient record: {e}")
 
+    def _render_report_to_printer(self, printer: QPrinter):
+        """Renders report_sheet to a QPrinter while hiding UI-only checkboxes and hint text."""
+        ui_only_widgets = [
+            w for w in (
+                getattr(self, "chk_use_banner", None),
+                getattr(self, "btn_choose_banner", None),
+                getattr(self, "lbl_disclaimer", None),
+            )
+            if w is not None
+        ]
+        prev_hidden = [(w, w.isHidden()) for w in ui_only_widgets]
+        try:
+            for w in ui_only_widgets:
+                w.setVisible(False)
+            QApplication.processEvents()
+
+            painter = QPainter(printer)
+            if not painter.isActive():
+                return
+            try:
+                page_rect = printer.pageRect(QPrinter.DevicePixel)
+                sheet_size = self.report_sheet.size()
+                if sheet_size.width() > 0 and sheet_size.height() > 0:
+                    scale = min(
+                        page_rect.width() / sheet_size.width(),
+                        page_rect.height() / sheet_size.height(),
+                    )
+                    x_off = page_rect.x() + (page_rect.width() - sheet_size.width() * scale) / 2.0
+                    y_off = page_rect.y()
+                    painter.translate(x_off, y_off)
+                    painter.scale(scale, scale)
+                self.report_sheet.render(painter, QPoint())
+            finally:
+                painter.end()
+        finally:
+            for w, was_hidden in prev_hidden:
+                w.setVisible(not was_hidden)
+
     def _handle_print_report(self):
-        """Dispatches high-fidelity printable endoscopy report."""
-        QMessageBox.information(
-            self, "Print Clinical Report",
-            f"Dispatching Endoscopic Procedure Report for:\n"
-            f"Patient: {self.input_name.text()}\n"
-            f"Procedure: {self.combo_procedure.currentText()}\n\n"
-            f"✓ Sent to default medical laser printer queue."
-        )
+        """Prints the clinical endoscopy report without UI-only checkbox/hint elements."""
+        self._save_findings_to_db()
+        self._save_clinic_header_settings()
+        printer = QPrinter(QPrinter.HighResolution)
+        dlg = QPrintDialog(printer, self)
+        dlg.setWindowTitle("Print Endoscopic Procedure Report")
+        if dlg.exec() == QDialog.Accepted:
+            self._render_report_to_printer(printer)
 
     def _handle_export_report(self):
-        """Exports printable document report."""
+        """Exports the procedure report as a clean PDF document."""
+        self._save_findings_to_db()
+        self._save_clinic_header_settings()
+
+        raw_id = self.input_id.text().strip().lstrip("0") or "0"
+        safe_name = "_".join(
+            "".join(c if c.isalnum() or c in ("-", "_", " ") else "_" for c in self.input_name.text()).split()
+        ) or "Patient"
+        default_name = f"Report_{raw_id}_{safe_name}.pdf"
+
         path, _ = QFileDialog.getSaveFileName(
             self, "Export Procedure Report",
-            f"Report_{self.input_name.text().replace(' ', '_')}.pdf",
+            default_name,
             "PDF Documents (*.pdf);;All Files (*)"
         )
-        if path:
-            QMessageBox.information(
-                self, "Export Complete",
-                f"✓ Endoscopic Procedure Report generated successfully:\n{path}"
-            )
+        if not path:
+            return
+        if not path.lower().endswith(".pdf"):
+            path += ".pdf"
+
+        try:
+            printer = QPrinter(QPrinter.HighResolution)
+            printer.setOutputFormat(QPrinter.PdfFormat)
+            printer.setOutputFileName(path)
+            self._render_report_to_printer(printer)
+            if os.path.exists(path) and os.path.getsize(path) > 0:
+                QMessageBox.information(
+                    self, "Export Complete",
+                    f"✓ Endoscopic Procedure Report exported successfully:\n{path}"
+                )
+            else:
+                QMessageBox.warning(self, "Export Error", "Failed to write PDF file.")
+        except Exception as e:
+            QMessageBox.warning(self, "Export Error", f"Unable to export report PDF: {e}")
 
     def _open_new_patient(self):
         from app.ui.dialogs.new_patient_dialog import NewPatientDialog
