@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
 import ctypes
 import winsound
 
-from PySide6.QtCore import Qt, QTimer, QTime, QRect, QPoint, QSize, Signal, QThread, QEvent, QObject
+from PySide6.QtCore import Qt, QTimer, QTime, QRect, QPoint, QSize, Signal, QThread, QEvent, QObject, QEventLoop
 from PySide6.QtGui import (
     QImage, QPixmap, QColor, QFont, QPainter, QPen, QBrush,
     QRadialGradient, QLinearGradient, QTextListFormat, QKeySequence,
@@ -698,6 +698,7 @@ class CaptureWindow(QDialog):
         self._init_ui()
         self._setup_shortcuts()
         self._load_patient_thumbnails()
+        self._load_patient_report()
 
         # Connect Bronchoscope Remote Trigger (Middle Mouse Click Pulse)
         self._init_bronchoscope_trigger()
@@ -746,6 +747,9 @@ class CaptureWindow(QDialog):
 
     def _cleanup_camera_and_triggers(self):
         try:
+            if hasattr(self, '_report_autosave_timer') and self._report_autosave_timer.isActive():
+                self._report_autosave_timer.stop()
+            self._save_live_report()
             if hasattr(self, '_auto_capture_timer') and self._auto_capture_timer.isActive():
                 self._auto_capture_timer.stop()
             if hasattr(self, '_scope_poll_timer'):
@@ -835,6 +839,26 @@ class CaptureWindow(QDialog):
             }}
             QLabel {{
                 color: #FFFFFF;
+            }}
+            QMessageBox {{
+                background-color: #FFFFFF;
+                color: #0F172A;
+            }}
+            QMessageBox QLabel {{
+                color: #0F172A;
+                font-size: 13px;
+            }}
+            QMessageBox QPushButton {{
+                background-color: #F1F5F9;
+                color: #0F172A;
+                border: 1px solid #CBD5E1;
+                border-radius: 4px;
+                padding: 5px 14px;
+                min-width: 68px;
+                font-weight: 600;
+            }}
+            QMessageBox QPushButton:hover {{
+                background-color: #E2E8F0;
             }}
             QCheckBox {{
                 color: #FFFFFF;
@@ -1239,7 +1263,7 @@ class CaptureWindow(QDialog):
         self.btn_write_report.setFixedSize(62, 50)
         self.btn_write_report.setStyleSheet(sub_btn_style)
         self.btn_write_report.setCursor(Qt.PointingHandCursor)
-        self.btn_write_report.clicked.connect(self._toggle_live_reporting)
+        self.btn_write_report.clicked.connect(self._open_write_report)
         nav_lay.addWidget(self.btn_write_report)
 
         self.btn_archive = QPushButton("Patients\nArchive")
@@ -1593,6 +1617,11 @@ class CaptureWindow(QDialog):
             }
         """)
         self.report_editor.setPlainText("N/A\n")
+        self._report_autosave_timer = QTimer(self)
+        self._report_autosave_timer.setSingleShot(True)
+        self._report_autosave_timer.setInterval(400)
+        self._report_autosave_timer.timeout.connect(self._save_live_report)
+        self.report_editor.textChanged.connect(self._report_autosave_timer.start)
         rep_lay.addWidget(self.report_editor, 1)
 
         center_lay.addWidget(self.reporting_panel)
@@ -1927,9 +1956,59 @@ class CaptureWindow(QDialog):
         else:
             self.btn_port_in.setText("S-Video\nPort In")
 
+    def _load_patient_report(self):
+        """Loads saved Live Report contents from SQLite for the active patient."""
+        if not hasattr(self, "report_editor"):
+            return
+        auto_id = str(self.patient_data.get("auto_id", "9"))
+        saved = self.db.get_patient_report(auto_id)
+        self.report_editor.blockSignals(True)
+        try:
+            if saved.get("findings_html"):
+                self.report_editor.setHtml(saved["findings_html"])
+            elif saved.get("findings"):
+                self.report_editor.setPlainText(saved["findings"])
+            else:
+                self.report_editor.setPlainText("N/A\n")
+        finally:
+            self.report_editor.blockSignals(False)
+
+    def _save_live_report(self):
+        """Persists Live Report contents to SQLite for future editing."""
+        if not hasattr(self, "report_editor"):
+            return
+        auto_id = str(self.patient_data.get("auto_id", "9"))
+        text_val = self.report_editor.toPlainText()
+        html_val = self.report_editor.toHtml()
+        self.patient_data["findings"] = text_val
+        self.patient_data["findings_html"] = html_val
+        try:
+            self.db.save_patient_report(auto_id, text_val, html_val)
+        except Exception as e:
+            print(f"[Warning] Failed to save live report: {e}")
+
     def _toggle_live_reporting(self):
         is_visible = self.reporting_panel.isVisible()
+        if is_visible:
+            self._save_live_report()
         self.reporting_panel.setVisible(not is_visible)
+
+    def _open_write_report(self):
+        """Saves Live Report, turns off camera, and opens the Report Page."""
+        self._save_live_report()
+        was_playing_file = getattr(self.viewport, '_is_playing_file', False)
+        self.viewport.stop_camera()
+        from app.ui.report_window import ProcedureReportWindow
+        report_win = ProcedureReportWindow(patient_record=dict(self.patient_data), parent=self)
+        report_win.setAttribute(Qt.WA_DeleteOnClose, True)
+        report_win.setWindowModality(Qt.ApplicationModal)
+        loop = QEventLoop(self)
+        report_win.destroyed.connect(loop.quit)
+        report_win.showMaximized()
+        loop.exec()
+        self._load_patient_report()
+        if self.isVisible() and not getattr(self, '_manual_video_closed', False) and not was_playing_file:
+            self.viewport.start_camera()
 
     def _toggle_fullscreen(self):
         if self.isFullScreen():
@@ -2461,6 +2540,7 @@ class CaptureWindow(QDialog):
         from app.ui.dialogs.new_patient_dialog import NewPatientDialog
         dlg = NewPatientDialog(parent=self)
         if self._run_modal_sub_dialog(dlg) == QDialog.Accepted:
+            self._save_live_report()
             latest = self.db.get_patients(limit=1)
             if latest:
                 p = latest[0]
@@ -2472,3 +2552,5 @@ class CaptureWindow(QDialog):
                     self.lbl_title_status.setText(f"● LIVE  [{pat_id}] {p.get('name', 'Nayem Islam')}")
                 self.viewport.set_patient_info(self.patient_data)
                 self._load_patient_thumbnails()
+                self._load_patient_report()
+        self._load_patient_report()

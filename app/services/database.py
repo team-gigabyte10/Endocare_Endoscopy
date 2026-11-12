@@ -155,6 +155,24 @@ class DatabaseService:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_patients_doc ON patients(doctor_name);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_patients_ref ON patients(referrer_name);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_patients_composite ON patients(procedure_name, visit_date, doctor_name);")
+
+            # Safe migration: ensure examinations has findings_html for rich-text report persistence
+            cur.execute("PRAGMA table_info(examinations);")
+            exam_cols = {row[1] for row in cur.fetchall()}
+            if "findings_html" not in exam_cols:
+                cur.execute("ALTER TABLE examinations ADD COLUMN findings_html TEXT;")
+
+            # 7. Clinic / Hospital Header & Banner Settings (single-row config)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS clinic_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    hospital_name TEXT DEFAULT 'Hospital/Clinic/Diagnostic Center Name',
+                    address_line1 TEXT DEFAULT 'Address Line 1',
+                    address_line2 TEXT DEFAULT 'Address Line 2',
+                    use_banner INTEGER DEFAULT 0,
+                    banner_path TEXT DEFAULT ''
+                );
+            """)
             
             conn.commit()
 
@@ -538,4 +556,107 @@ class DatabaseService:
             cur.execute("DELETE FROM study_images WHERE id = ?;", (image_id,))
             conn.commit()
             return cur.rowcount > 0
+
+    def _resolve_patient_row_id(self, cur, patient_auto_id: str) -> Optional[int]:
+        raw = str(patient_auto_id or "").strip()
+        if not raw:
+            return None
+        trimmed = raw.lstrip("0") or "0"
+        cur.execute(
+            "SELECT id FROM patients WHERE auto_id = ? OR LTRIM(auto_id, '0') = ? LIMIT 1;",
+            (raw, trimmed)
+        )
+        row = cur.fetchone()
+        return int(row[0]) if row else None
+
+    def save_patient_report(self, patient_auto_id: str, findings_text: str, findings_html: str = "") -> None:
+        """Saves or updates the patient's latest examination report findings in SQLite."""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            pid = self._resolve_patient_row_id(cur, patient_auto_id)
+            if pid is None:
+                return
+            cur.execute("SELECT id FROM examinations WHERE patient_id = ? ORDER BY id DESC LIMIT 1;", (pid,))
+            exam = cur.fetchone()
+            if exam:
+                cur.execute(
+                    "UPDATE examinations SET findings = ?, findings_html = ? WHERE id = ?;",
+                    (findings_text, findings_html, exam[0])
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO examinations (patient_id, findings, findings_html) VALUES (?, ?, ?);",
+                    (pid, findings_text, findings_html)
+                )
+            conn.commit()
+
+    def get_patient_report(self, patient_auto_id: str) -> Dict[str, str]:
+        """Retrieves saved report findings (plain text and HTML) for the given patient auto ID."""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            pid = self._resolve_patient_row_id(cur, patient_auto_id)
+            if pid is None:
+                return {}
+            cur.execute(
+                "SELECT findings, findings_html FROM examinations WHERE patient_id = ? ORDER BY id DESC LIMIT 1;",
+                (pid,)
+            )
+            row = cur.fetchone()
+            if not row:
+                return {}
+            return {
+                "findings": row[0] or "",
+                "findings_html": row[1] or "",
+            }
+
+    def get_clinic_settings(self) -> Dict[str, Any]:
+        """Retrieves saved Clinic/Hospital header and banner configuration."""
+        defaults = {
+            "hospital_name": "Hospital/Clinic/Diagnostic Center Name",
+            "address_line1": "Address Line 1",
+            "address_line2": "Address Line 2",
+            "use_banner": False,
+            "banner_path": "",
+        }
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT hospital_name, address_line1, address_line2, use_banner, banner_path "
+                "FROM clinic_settings WHERE id = 1;"
+            )
+            row = cur.fetchone()
+            if not row:
+                return defaults
+            return {
+                "hospital_name": row[0] or defaults["hospital_name"],
+                "address_line1": row[1] or defaults["address_line1"],
+                "address_line2": row[2] or defaults["address_line2"],
+                "use_banner": bool(row[3]),
+                "banner_path": row[4] or "",
+            }
+
+    def save_clinic_settings(self, settings: Dict[str, Any]) -> None:
+        """Persists Clinic/Hospital header text and banner toggle settings in SQLite."""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO clinic_settings (id, hospital_name, address_line1, address_line2, use_banner, banner_path)
+                VALUES (1, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    hospital_name = excluded.hospital_name,
+                    address_line1 = excluded.address_line1,
+                    address_line2 = excluded.address_line2,
+                    use_banner = excluded.use_banner,
+                    banner_path = excluded.banner_path;
+                """,
+                (
+                    str(settings.get("hospital_name", "Hospital/Clinic/Diagnostic Center Name")),
+                    str(settings.get("address_line1", "Address Line 1")),
+                    str(settings.get("address_line2", "Address Line 2")),
+                    1 if settings.get("use_banner") else 0,
+                    str(settings.get("banner_path", "")),
+                ),
+            )
+            conn.commit()
 

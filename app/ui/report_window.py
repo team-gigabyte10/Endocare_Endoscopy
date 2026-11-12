@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QApplication, QFileDialog, QFontDialog, QScrollArea,
     QSizePolicy, QDialog
 )
-from PySide6.QtCore import Qt, QDate, QRect, QPoint, QSize, Signal
+from PySide6.QtCore import Qt, QDate, QRect, QPoint, QSize, Signal, QTimer
 from PySide6.QtGui import (
     QPixmap, QColor, QFont, QTextCursor, QTextListFormat,
     QTextBlockFormat, QTextCharFormat, QKeySequence, QShortcut,
@@ -397,53 +397,111 @@ class ProcedureReportWindow(QWidget):
         sheet_layout.setSpacing(8)
 
         # -------------------------------------------------------------
-        # A. Header Area (Hospital / Clinic Info)
+        # A. Header Area (Left-Top Banner Toggle + Editable Text / Banner)
         # -------------------------------------------------------------
-        header_box = QVBoxLayout()
-        header_box.setSpacing(1)
+        clinic_cfg = self.db.get_clinic_settings()
+        self._banner_path = clinic_cfg.get("banner_path", "")
+
+        top_header_ctrl = QHBoxLayout()
+        top_header_ctrl.setContentsMargins(0, 0, 0, 2)
+        top_header_ctrl.setSpacing(8)
+
+        self.chk_use_banner = QCheckBox("Show Clinic/Hospital Banner")
+        self.chk_use_banner.setCursor(Qt.PointingHandCursor)
+        self.chk_use_banner.setStyleSheet("""
+            QCheckBox {
+                font-size: 11px;
+                font-weight: 600;
+                color: #334155;
+            }
+        """)
+        top_header_ctrl.addWidget(self.chk_use_banner)
+
+        self.btn_choose_banner = QPushButton("Choose Banner Image...")
+        self.btn_choose_banner.setCursor(Qt.PointingHandCursor)
+        self.btn_choose_banner.setStyleSheet("""
+            QPushButton {
+                font-size: 11px;
+                font-weight: 600;
+                color: #0284C7;
+                background: #F0F9FF;
+                border: 1px solid #BAE6FD;
+                border-radius: 3px;
+                padding: 2px 8px;
+            }
+            QPushButton:hover {
+                background: #E0F2FE;
+            }
+        """)
+        self.btn_choose_banner.clicked.connect(self._choose_banner_image)
+        top_header_ctrl.addWidget(self.btn_choose_banner)
+        top_header_ctrl.addStretch()
+        sheet_layout.addLayout(top_header_ctrl)
+
+        # Editable Text Header Widget (shown when chk_use_banner is unchecked)
+        self.text_header_widget = QWidget()
+        header_box = QVBoxLayout(self.text_header_widget)
+        header_box.setContentsMargins(0, 0, 0, 0)
+        header_box.setSpacing(2)
         header_box.setAlignment(Qt.AlignCenter)
 
-        self.lbl_hospital_name = QLabel("Hospital/Clinic/Diagnostic Center Name")
-        self.lbl_hospital_name.setAlignment(Qt.AlignCenter)
-        self.lbl_hospital_name.setStyleSheet("""
-            QLabel {
-                font-size: 23px;
+        self.input_hospital_name = QLineEdit(clinic_cfg.get("hospital_name", "Hospital/Clinic/Diagnostic Center Name"))
+        self.input_hospital_name.setAlignment(Qt.AlignCenter)
+        self.input_hospital_name.setPlaceholderText("Hospital/Clinic/Diagnostic Center Name")
+        self.input_hospital_name.setStyleSheet("""
+            QLineEdit {
+                font-size: 22px;
                 font-weight: 800;
                 color: #000000;
-                letter-spacing: 0.2px;
                 background: transparent;
-                border: none;
+                border: 1px solid transparent;
+                border-radius: 3px;
+                padding: 1px 6px;
+            }
+            QLineEdit:hover {
+                border: 1px dashed #CBD5E1;
+                background: #F8FAFC;
+            }
+            QLineEdit:focus {
+                border: 1px solid #0284C7;
+                background: #FFFFFF;
             }
         """)
-        header_box.addWidget(self.lbl_hospital_name)
+        header_box.addWidget(self.input_hospital_name)
 
-        self.lbl_address1 = QLabel("Address Line 1")
-        self.lbl_address1.setAlignment(Qt.AlignCenter)
-        self.lbl_address1.setStyleSheet("""
-            QLabel {
+        addr_style = """
+            QLineEdit {
                 font-size: 13px;
                 font-weight: 700;
                 color: #000000;
                 background: transparent;
-                border: none;
+                border: 1px solid transparent;
+                border-radius: 3px;
+                padding: 1px 6px;
             }
-        """)
-        header_box.addWidget(self.lbl_address1)
-
-        self.lbl_address2 = QLabel("Address Line 2")
-        self.lbl_address2.setAlignment(Qt.AlignCenter)
-        self.lbl_address2.setStyleSheet("""
-            QLabel {
-                font-size: 13px;
-                font-weight: 700;
-                color: #000000;
-                background: transparent;
-                border: none;
+            QLineEdit:hover {
+                border: 1px dashed #CBD5E1;
+                background: #F8FAFC;
             }
-        """)
-        header_box.addWidget(self.lbl_address2)
+            QLineEdit:focus {
+                border: 1px solid #0284C7;
+                background: #FFFFFF;
+            }
+        """
 
-        lbl_disclaimer = QLabel("(This is Text Format area. This option does not allow LOGO)")
+        self.input_address1 = QLineEdit(clinic_cfg.get("address_line1", "Address Line 1"))
+        self.input_address1.setAlignment(Qt.AlignCenter)
+        self.input_address1.setPlaceholderText("Address Line 1")
+        self.input_address1.setStyleSheet(addr_style)
+        header_box.addWidget(self.input_address1)
+
+        self.input_address2 = QLineEdit(clinic_cfg.get("address_line2", "Address Line 2"))
+        self.input_address2.setAlignment(Qt.AlignCenter)
+        self.input_address2.setPlaceholderText("Address Line 2")
+        self.input_address2.setStyleSheet(addr_style)
+        header_box.addWidget(self.input_address2)
+
+        lbl_disclaimer = QLabel("(This is Text Format area. Click to edit Center Name & Address)")
         lbl_disclaimer.setAlignment(Qt.AlignCenter)
         lbl_disclaimer.setStyleSheet("""
             QLabel {
@@ -456,8 +514,71 @@ class ProcedureReportWindow(QWidget):
             }
         """)
         header_box.addWidget(lbl_disclaimer)
+        sheet_layout.addWidget(self.text_header_widget)
 
-        sheet_layout.addLayout(header_box)
+        # Clinic / Hospital Banner Widget (shown when chk_use_banner is checked)
+        self.banner_header_widget = QFrame()
+        self.banner_header_widget.setObjectName("clinicBannerFrame")
+        self.banner_header_widget.setFixedHeight(96)
+        self.banner_header_widget.setStyleSheet("""
+            QFrame#clinicBannerFrame {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #0F172A, stop:0.55 #0369A1, stop:1 #0284C7);
+                border: 1px solid #0284C7;
+                border-radius: 6px;
+            }
+        """)
+        banner_lay = QHBoxLayout(self.banner_header_widget)
+        banner_lay.setContentsMargins(18, 10, 18, 10)
+        banner_lay.setSpacing(14)
+
+        self.banner_custom_img = QLabel()
+        self.banner_custom_img.setAlignment(Qt.AlignCenter)
+        self.banner_custom_img.setVisible(False)
+        banner_lay.addWidget(self.banner_custom_img, 1)
+
+        self.banner_logo_lbl = QLabel()
+        self.banner_logo_lbl.setFixedSize(60, 60)
+        self.banner_logo_lbl.setAlignment(Qt.AlignCenter)
+        self.banner_logo_lbl.setStyleSheet("background: rgba(255, 255, 255, 0.12); border-radius: 8px; border: none;")
+        logo_p = get_asset_path("logo.png")
+        if os.path.exists(logo_p):
+            self.banner_logo_lbl.setPixmap(QPixmap(logo_p).scaled(48, 48, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        banner_lay.addWidget(self.banner_logo_lbl)
+
+        self.banner_text_col = QWidget()
+        self.banner_text_col.setStyleSheet("background: transparent; border: none;")
+        bt_lay = QVBoxLayout(self.banner_text_col)
+        bt_lay.setContentsMargins(0, 0, 0, 0)
+        bt_lay.setSpacing(2)
+        bt_lay.setAlignment(Qt.AlignVCenter)
+
+        self.banner_title_lbl = QLabel()
+        self.banner_title_lbl.setStyleSheet("font-size: 20px; font-weight: 800; color: #FFFFFF; background: transparent; border: none;")
+        bt_lay.addWidget(self.banner_title_lbl)
+
+        self.banner_addr_lbl = QLabel()
+        self.banner_addr_lbl.setStyleSheet("font-size: 12px; font-weight: 600; color: #E0F2FE; background: transparent; border: none;")
+        bt_lay.addWidget(self.banner_addr_lbl)
+
+        banner_lay.addWidget(self.banner_text_col, 1)
+        sheet_layout.addWidget(self.banner_header_widget)
+
+        self._clinic_autosave_timer = QTimer(self)
+        self._clinic_autosave_timer.setSingleShot(True)
+        self._clinic_autosave_timer.setInterval(400)
+        self._clinic_autosave_timer.timeout.connect(self._save_clinic_header_settings)
+
+        for field in (self.input_hospital_name, self.input_address1, self.input_address2):
+            field.textChanged.connect(self._on_clinic_text_changed)
+
+        self.chk_use_banner.blockSignals(True)
+        self.chk_use_banner.setChecked(bool(clinic_cfg.get("use_banner", False)))
+        self.chk_use_banner.blockSignals(False)
+        self.chk_use_banner.toggled.connect(self._toggle_banner_mode)
+
+        self._refresh_banner_display()
+        self._apply_banner_visibility(self.chk_use_banner.isChecked())
         sheet_layout.addSpacing(4)
 
         # -------------------------------------------------------------
@@ -1020,6 +1141,11 @@ class ProcedureReportWindow(QWidget):
             }
         """)
         self.findings_edit.setPlainText("N/A")
+        self._report_autosave_timer = QTimer(self)
+        self._report_autosave_timer.setSingleShot(True)
+        self._report_autosave_timer.setInterval(400)
+        self._report_autosave_timer.timeout.connect(self._save_findings_to_db)
+        self.findings_edit.textChanged.connect(self._report_autosave_timer.start)
         left_col.addWidget(self.findings_edit, 1)
 
         content_split.addLayout(left_col, 56)
@@ -1400,17 +1526,27 @@ class ProcedureReportWindow(QWidget):
         ind = rec.get("indication") or "hjj"
         self.input_indication.setText(ind)
 
-        # Default clinical findings template based on procedure if empty
-        findings = rec.get("findings")
-        if not findings or findings == "N/A":
-            self.findings_edit.setPlainText(
-                "• Mucosa: Smooth, glistening, normal vascular pattern throughout explored segments.\n"
-                "• Lumen: Adequate distensibility with insufflation, clear luminal wash achieved.\n"
-                "• Findings: No ulceration, stricture, polyp, or active bleeding identified.\n"
-                "• Impression: Normal examination. Routine follow-up as clinically indicated."
-            )
-        else:
-            self.findings_edit.setPlainText(findings)
+        # Load saved report contents from SQLite if available, else fallback
+        saved_rep = self.db.get_patient_report(aid)
+        self.findings_edit.blockSignals(True)
+        try:
+            if saved_rep.get("findings_html"):
+                self.findings_edit.setHtml(saved_rep["findings_html"])
+            elif saved_rep.get("findings"):
+                self.findings_edit.setPlainText(saved_rep["findings"])
+            else:
+                findings = rec.get("findings")
+                if not findings or findings == "N/A":
+                    self.findings_edit.setPlainText(
+                        "• Mucosa: Smooth, glistening, normal vascular pattern throughout explored segments.\n"
+                        "• Lumen: Adequate distensibility with insufflation, clear luminal wash achieved.\n"
+                        "• Findings: No ulceration, stricture, polyp, or active bleeding identified.\n"
+                        "• Impression: Normal examination. Routine follow-up as clinically indicated."
+                    )
+                else:
+                    self.findings_edit.setPlainText(findings)
+        finally:
+            self.findings_edit.blockSignals(False)
 
     def _load_patient_images(self):
         """Refreshes study images inside the slots."""
@@ -1485,6 +1621,82 @@ class ProcedureReportWindow(QWidget):
     # SIDEBAR WORKFLOW HANDLERS
     # =========================================================================
 
+    def _on_clinic_text_changed(self):
+        self._refresh_banner_display()
+        self._clinic_autosave_timer.start()
+
+    def _apply_banner_visibility(self, use_banner: bool):
+        self.banner_header_widget.setVisible(use_banner)
+        self.text_header_widget.setVisible(not use_banner)
+        self.btn_choose_banner.setVisible(use_banner)
+
+    def _toggle_banner_mode(self, checked: bool):
+        self._apply_banner_visibility(checked)
+        self._save_clinic_header_settings()
+
+    def _choose_banner_image(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Clinic/Hospital Banner Image",
+            "",
+            "Image Files (*.png *.jpg *.jpeg *.bmp);;All Files (*)"
+        )
+        if path:
+            self._banner_path = path
+            self._refresh_banner_display()
+            self._save_clinic_header_settings()
+
+    def _refresh_banner_display(self):
+        h_name = self.input_hospital_name.text().strip() or "Hospital/Clinic/Diagnostic Center Name"
+        a1 = self.input_address1.text().strip()
+        a2 = self.input_address2.text().strip()
+        addr_joined = " • ".join([p for p in (a1, a2) if p])
+
+        if self._banner_path and os.path.exists(self._banner_path):
+            pix = QPixmap(self._banner_path)
+            if not pix.isNull():
+                self.banner_custom_img.setPixmap(pix.scaled(980, 84, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                self.banner_custom_img.setVisible(True)
+                self.banner_logo_lbl.setVisible(False)
+                self.banner_text_col.setVisible(False)
+                return
+
+        self.banner_custom_img.setVisible(False)
+        self.banner_logo_lbl.setVisible(True)
+        self.banner_text_col.setVisible(True)
+        self.banner_title_lbl.setText(h_name)
+        self.banner_addr_lbl.setText(addr_joined)
+
+    def _save_clinic_header_settings(self):
+        if not hasattr(self, "input_hospital_name"):
+            return
+        try:
+            self.db.save_clinic_settings({
+                "hospital_name": self.input_hospital_name.text().strip() or "Hospital/Clinic/Diagnostic Center Name",
+                "address_line1": self.input_address1.text().strip(),
+                "address_line2": self.input_address2.text().strip(),
+                "use_banner": self.chk_use_banner.isChecked(),
+                "banner_path": getattr(self, "_banner_path", ""),
+            })
+        except Exception as e:
+            print(f"[Warning] Failed to save clinic header settings: {e}")
+
+    def _save_findings_to_db(self):
+        """Persists current findings text and HTML to SQLite for future editing."""
+        if not hasattr(self, "findings_edit"):
+            return
+        aid = self.input_id.text().strip() or str(self.patient_record.get("auto_id", ""))
+        if not aid:
+            return
+        text_val = self.findings_edit.toPlainText()
+        html_val = self.findings_edit.toHtml()
+        self.patient_record["findings"] = text_val
+        self.patient_record["findings_html"] = html_val
+        try:
+            self.db.save_patient_report(aid, text_val, html_val)
+        except Exception as e:
+            print(f"[Warning] Failed to save report findings: {e}")
+
     def _save_report_to_database(self):
         """Updates and persists the modified patient report and findings in SQLite."""
         aid = self.input_id.text().strip().lstrip("0") or self.input_id.text().strip()
@@ -1500,7 +1712,8 @@ class ProcedureReportWindow(QWidget):
         try:
             self.db.update_patient(aid, update_data)
             self.patient_record.update(update_data)
-            self.patient_record["findings"] = self.findings_edit.toPlainText()
+            self._save_findings_to_db()
+            self._save_clinic_header_settings()
             QMessageBox.information(
                 self, "Report Saved",
                 f"✓ Examination Report for {self.patient_record.get('name')} saved successfully to SQLite database."
@@ -1572,13 +1785,25 @@ class ProcedureReportWindow(QWidget):
         self.image_plus_win = ImagePlusWindow(patient_record=rec, parent=None)
         self.image_plus_win.show_maximized_clean()
 
+    def closeEvent(self, event):
+        if hasattr(self, "_report_autosave_timer") and self._report_autosave_timer.isActive():
+            self._report_autosave_timer.stop()
+        if hasattr(self, "_clinic_autosave_timer") and self._clinic_autosave_timer.isActive():
+            self._clinic_autosave_timer.stop()
+        self._save_findings_to_db()
+        self._save_clinic_header_settings()
+        super().closeEvent(event)
+
     def _back_to_capture(self):
-        """Closes report and launches Capture Workstation for this patient."""
+        """Closes report and returns to Capture Workstation for this patient."""
+        self._save_findings_to_db()
+        parent_w = self.parent()
         self.close()
-        from app.ui.capture_window import CaptureWindow
-        cap = CaptureWindow(patient_data=self.patient_record, parent=None)
-        cap.showMaximized()
-        cap.exec()
+        if parent_w is None or parent_w.__class__.__name__ != "CaptureWindow":
+            from app.ui.capture_window import CaptureWindow
+            cap = CaptureWindow(patient_data=self.patient_record, parent=None)
+            cap.showMaximized()
+            cap.exec()
 
     def _handle_home(self):
         self.close()
