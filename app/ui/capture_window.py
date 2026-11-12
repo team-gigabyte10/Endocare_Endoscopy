@@ -151,35 +151,76 @@ class VideoCaptureThread(QThread):
     """
     frame_ready = Signal(np.ndarray)
 
-    def __init__(self, device_index=0, parent=None):
+    def __init__(self, device_index=0, video_path: Optional[str] = None, parent=None):
         super().__init__(parent)
         self.device_index = device_index
+        self.video_path = video_path
         self._running = False
         self._cap = None
+        self.target_width = 1920
+        self.target_height = 1080
+        self.target_fps = 24
+        self._reconfig_pending = False
+
+    def set_format(self, width: int, height: int, fps: int):
+        self.target_width = int(width)
+        self.target_height = int(height)
+        self.target_fps = int(fps)
+        self._reconfig_pending = True
+
+    def _apply_capture_props(self):
+        if self._cap and self._cap.isOpened():
+            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.target_width)
+            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.target_height)
+            self._cap.set(cv2.CAP_PROP_FPS, self.target_fps)
+        self._reconfig_pending = False
 
     def run(self):
         self._running = True
-        CaptureDeviceManager.device_in_use = True
+        is_file = bool(self.video_path)
+        if not is_file:
+            CaptureDeviceManager.device_in_use = True
+        delay_ms = 33
         try:
-            self._cap = cv2.VideoCapture(self.device_index, cv2.CAP_DSHOW)
-            if self._cap.isOpened():
-                self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
-                self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
-                self._cap.set(cv2.CAP_PROP_FPS, 60)
+            if is_file:
+                self._cap = cv2.VideoCapture(self.video_path)
+                if self._cap.isOpened():
+                    fps = self._cap.get(cv2.CAP_PROP_FPS)
+                    if not fps or fps <= 0 or fps > 60:
+                        fps = 30.0
+                    delay_ms = max(15, int(1000.0 / fps))
+            else:
+                self._cap = cv2.VideoCapture(self.device_index, cv2.CAP_DSHOW)
+                self._apply_capture_props()
         except Exception as e:
-            print(f"Error opening DirectShow device {self.device_index}: {e}")
+            print(f"Error opening video source: {e}")
 
         while self._running:
+            if not is_file and self._reconfig_pending:
+                try:
+                    self._apply_capture_props()
+                except Exception:
+                    self._reconfig_pending = False
             if self._cap and self._cap.isOpened():
                 ret, frame = self._cap.read()
                 if ret and frame is not None:
+                    if not is_file and (frame.shape[1] != self.target_width or frame.shape[0] != self.target_height):
+                        frame = cv2.resize(frame, (self.target_width, self.target_height), interpolation=cv2.INTER_AREA)
                     self.frame_ready.emit(frame)
+                    if is_file:
+                        self.msleep(delay_ms)
                 else:
-                    self.msleep(30)
+                    if is_file:
+                        # Loop video playback so user can capture frames anytime
+                        self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        self.msleep(delay_ms)
+                    else:
+                        self.msleep(30)
             else:
                 self.msleep(50)
 
-        CaptureDeviceManager.device_in_use = False
+        if not is_file:
+            CaptureDeviceManager.device_in_use = False
         if self._cap:
             try:
                 self._cap.release()
@@ -217,6 +258,10 @@ class LiveVideoViewport(QLabel):
         self.contrast = 50
         self.hue = 50
         self.saturation = 50
+        self.video_standard = "SECAM (B) Standard"
+        self.target_width = 1920
+        self.target_height = 1080
+        self.target_fps = 24
 
         # Filter states
         self.filter_vessel_plus = False   # (F9) Vessel+ NBI cyan/green boost
@@ -227,6 +272,7 @@ class LiveVideoViewport(QLabel):
         # Hardware feed state
         self._sim_tick = 0
         self._is_recording = False
+        self._is_playing_file = False
         self._record_writer = None
         self._record_path = None
         self._record_w = 1280
@@ -256,30 +302,50 @@ class LiveVideoViewport(QLabel):
         self._render_timer = QTimer(self)
         self._render_timer.timeout.connect(self._on_tick)
 
+    def _apply_frame_adjustments(self, bgr_frame: np.ndarray) -> np.ndarray:
+        """Applies crop, video standard pedestal, invert, brightness, contrast, hue, and saturation."""
+        frame = bgr_frame.copy()
+
+        if self.filter_crop_onthefly:
+            ch_h, ch_w = frame.shape[:2]
+            cy = int(ch_h * 0.04)
+            cx = int(ch_w * 0.04)
+            if cy > 0 and cx > 0:
+                frame = frame[cy:ch_h - cy, cx:ch_w - cx]
+
+        if "7.5 IRE" in self.video_standard:
+            # 7.5 IRE NTSC setup pedestal lift (maps [0..255] -> [16..255])
+            frame = np.clip(frame.astype(np.float32) * (239.0 / 255.0) + 16.0, 0, 255).astype(np.uint8)
+
+        if self.filter_invert_gray:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            inv = cv2.bitwise_not(gray)
+            frame = cv2.cvtColor(inv, cv2.COLOR_GRAY2BGR)
+
+        if self.brightness != 50 or self.contrast != 50:
+            alpha = self.contrast / 50.0
+            beta = (self.brightness - 50) * 2.55
+            frame = np.clip(alpha * (frame.astype(np.float32) - 128.0) + 128.0 + beta, 0, 255).astype(np.uint8)
+
+        if self.hue != 50 or self.saturation != 50:
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            if self.hue != 50:
+                h_shift = int(round((self.hue - 50) * 1.8))
+                hsv[:, :, 0] = ((hsv[:, :, 0].astype(np.int16) + h_shift) % 180).astype(np.uint8)
+            if self.saturation != 50:
+                s_scale = self.saturation / 50.0
+                hsv[:, :, 1] = np.clip(hsv[:, :, 1].astype(np.float32) * s_scale, 0, 255).astype(np.uint8)
+            frame = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
+        return frame
+
     def _on_new_camera_frame(self, frame: np.ndarray):
         self._latest_cv_frame = frame
         if self._is_recording and self._record_writer is not None:
             try:
-                rec_frame = frame.copy()
-                if self.filter_crop_onthefly:
-                    ch_h, ch_w = rec_frame.shape[:2]
-                    cy = int(ch_h * 0.04)
-                    cx = int(ch_w * 0.04)
-                    if cy > 0 and cx > 0:
-                        rec_frame = rec_frame[cy:ch_h - cy, cx:ch_w - cx]
-                if self.filter_invert_gray:
-                    gray = cv2.cvtColor(rec_frame, cv2.COLOR_BGR2GRAY)
-                    inv = cv2.bitwise_not(gray)
-                    rec_frame = cv2.cvtColor(inv, cv2.COLOR_GRAY2BGR)
-
-                if self.brightness != 50 or self.contrast != 50:
-                    alpha = self.contrast / 50.0
-                    beta = (self.brightness - 50) * 2.0
-                    rec_frame = np.clip(alpha * rec_frame.astype(np.float32) + beta, 0, 255).astype(np.uint8)
-
+                rec_frame = self._apply_frame_adjustments(frame)
                 if rec_frame.shape[1] != self._record_w or rec_frame.shape[0] != self._record_h:
                     rec_frame = cv2.resize(rec_frame, (self._record_w, self._record_h))
-
                 self._record_writer.write(rec_frame)
                 self._frames_written += 1
             except Exception:
@@ -290,11 +356,26 @@ class LiveVideoViewport(QLabel):
         super().closeEvent(event)
 
     def start_camera(self):
-        if not hasattr(self, '_cap_thread') or self._cap_thread is None:
+        self._is_playing_file = False
+        if not hasattr(self, '_cap_thread') or self._cap_thread is None or self._cap_thread.video_path is not None:
+            if hasattr(self, '_cap_thread') and self._cap_thread and self._cap_thread.isRunning():
+                self._cap_thread.stop()
+                self._cap_thread.wait(1000)
             self._cap_thread = VideoCaptureThread(device_index=0, parent=self)
+            self._cap_thread.set_format(self.target_width, self.target_height, self.target_fps)
             self._cap_thread.frame_ready.connect(self._on_new_camera_frame)
         if not self._cap_thread.isRunning():
             self._cap_thread.start()
+        if hasattr(self, '_render_timer') and not self._render_timer.isActive():
+            self._render_timer.start(33)
+
+    def start_video_file(self, video_path: str):
+        """Plays a recorded video file in the viewport without activating the camera hardware."""
+        self.stop_camera()
+        self._is_playing_file = True
+        self._cap_thread = VideoCaptureThread(video_path=video_path, parent=self)
+        self._cap_thread.frame_ready.connect(self._on_new_camera_frame)
+        self._cap_thread.start()
         if hasattr(self, '_render_timer') and not self._render_timer.isActive():
             self._render_timer.start(33)
 
@@ -307,6 +388,7 @@ class LiveVideoViewport(QLabel):
             if self._cap_thread.isRunning():
                 self._cap_thread.stop()
                 self._cap_thread.wait(1000)
+        self._is_playing_file = False
         CaptureDeviceManager.device_in_use = False
         self._latest_cv_frame = None
         if self._record_writer:
@@ -319,6 +401,22 @@ class LiveVideoViewport(QLabel):
 
     def set_patient_info(self, info: dict):
         self._patient_info = info
+        self.update()
+
+    def set_video_standard(self, standard: str, fps: Optional[int] = None):
+        self.video_standard = standard
+        if fps is not None:
+            self.target_fps = fps
+            if hasattr(self, '_cap_thread') and self._cap_thread:
+                self._cap_thread.set_format(self.target_width, self.target_height, self.target_fps)
+        self.update()
+
+    def set_resolution(self, width: int, height: int, fps: int):
+        self.target_width = width
+        self.target_height = height
+        self.target_fps = fps
+        if hasattr(self, '_cap_thread') and self._cap_thread:
+            self._cap_thread.set_format(width, height, fps)
         self.update()
 
     def set_adjustments(self, brightness: int, contrast: int, hue: int, saturation: int):
@@ -447,23 +545,8 @@ class LiveVideoViewport(QLabel):
 
         # 2. Render Live Feed or Standby HUD
         if has_active_signal and self._latest_cv_frame is not None:
-            frame = self._latest_cv_frame.copy()
-
-            # Apply OnTheFly Image Cropping (4% perimeter crop to remove camera borders)
-            if self.filter_crop_onthefly:
-                ch_h, ch_w = frame.shape[:2]
-                crop_y = int(ch_h * 0.04)
-                crop_x = int(ch_w * 0.04)
-                if crop_y > 0 and crop_x > 0:
-                    frame = frame[crop_y:ch_h - crop_y, crop_x:ch_w - crop_x]
-
-            # Apply GrayScale-Pixels Inverter
-            if self.filter_invert_gray:
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                inv = cv2.bitwise_not(gray)
-                rgb_frame = cv2.cvtColor(inv, cv2.COLOR_GRAY2RGB)
-            else:
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame = self._apply_frame_adjustments(self._latest_cv_frame)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
             fh, fw, ch = rgb_frame.shape
             bytes_per_line = ch * fw
@@ -482,25 +565,12 @@ class LiveVideoViewport(QLabel):
             painter.setPen(QColor("#475569"))
             painter.drawText(QRect(0, h // 2 + 10, w, 20), Qt.AlignCenter, "DirectShow USB2 Capture Device Ready")
 
-        # 3. Filters & Real-time Color Adjustments
+        # 3. Filters
         if self.filter_vessel_plus:
             painter.fillRect(0, 0, w, h, QColor(0, 200, 140, 55))
 
         if self.filter_vision_x:
             painter.fillRect(0, 0, w, h, QColor(20, 170, 245, 45))
-
-        # Brightness / Contrast color grading
-        b_delta = self.brightness - 50
-        if b_delta > 0:
-            painter.fillRect(0, 0, w, h, QColor(255, 255, 255, int(b_delta * 2.0)))
-        elif b_delta < 0:
-            painter.fillRect(0, 0, w, h, QColor(0, 0, 0, int(abs(b_delta) * 2.4)))
-
-        s_delta = self.saturation - 50
-        if s_delta > 0:
-            painter.fillRect(0, 0, w, h, QColor(255, 120, 120, int(s_delta * 0.45)))
-        elif s_delta < 0:
-            painter.fillRect(0, 0, w, h, QColor(128, 128, 128, int(abs(s_delta) * 0.9)))
 
         # 4. Authentic Green Tracking Markers from Screenshot 003705.png
         # Marker 1 (upper-left region)
@@ -533,7 +603,12 @@ class LiveVideoViewport(QLabel):
                 painter.drawText(w - 95, 24, "REC ● LIVE")
         else:
             painter.setPen(QColor("#38BDF8"))
-            status_text = "USB2 LIVE 60 FPS" if self.is_hardware_signal_active() else "DIRECTSHOW STANDBY"
+            if self._is_playing_file and self.is_hardware_signal_active():
+                status_text = "VIDEO PLAYBACK"
+            elif self.is_hardware_signal_active():
+                status_text = "USB2 LIVE 60 FPS"
+            else:
+                status_text = "DIRECTSHOW STANDBY"
             painter.drawText(w - 150, 24, status_text)
 
         # 7. Shutter Flash Effect on Capture
@@ -574,25 +649,8 @@ class LiveVideoViewport(QLabel):
     def grab_current_frame(self) -> QImage:
         """Captures the current viewport display as a clean, high-resolution QImage."""
         if self._latest_cv_frame is not None:
-            frame = self._latest_cv_frame.copy()
-            if self.filter_crop_onthefly:
-                ch_h, ch_w = frame.shape[:2]
-                crop_y = int(ch_h * 0.04)
-                crop_x = int(ch_w * 0.04)
-                if crop_y > 0 and crop_x > 0:
-                    frame = frame[crop_y:ch_h - crop_y, crop_x:ch_w - crop_x]
-            if self.filter_invert_gray:
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                inv = cv2.bitwise_not(gray)
-                rgb_frame = cv2.cvtColor(inv, cv2.COLOR_GRAY2RGB)
-            else:
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-            if self.brightness != 50 or self.contrast != 50:
-                alpha = self.contrast / 50.0
-                beta = (self.brightness - 50) * 2.0
-                rgb_frame = np.clip(alpha * rgb_frame.astype(np.float32) + beta, 0, 255).astype(np.uint8)
-
+            frame = self._apply_frame_adjustments(self._latest_cv_frame)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             fh, fw, ch = rgb_frame.shape
             bytes_per_line = ch * fw
             qimg = QImage(rgb_frame.data, fw, fh, bytes_per_line, QImage.Format_RGB888)
@@ -630,6 +688,9 @@ class CaptureWindow(QDialog):
         self.captured_images: List[Dict[str, Any]] = []
         self._selected_card_widget = None
         self._manual_video_closed = False
+        self._prev_still_gray = None
+        self._still_since = None
+        self._captured_for_current_still = False
         self._auto_capture_timer = QTimer(self)
         self._auto_capture_timer.timeout.connect(self._handle_auto_capture)
 
@@ -680,7 +741,7 @@ class CaptureWindow(QDialog):
             if hasattr(self, 'btn_win_max'):
                 self.btn_win_max.setText("🗗")
                 self.btn_win_max.setToolTip("Restore Down")
-        if hasattr(self, 'viewport') and not getattr(self, '_manual_video_closed', False):
+        if hasattr(self, 'viewport') and not getattr(self, '_manual_video_closed', False) and not getattr(self.viewport, '_is_playing_file', False):
             self.viewport.start_camera()
 
     def _cleanup_camera_and_triggers(self):
@@ -693,6 +754,8 @@ class CaptureWindow(QDialog):
             if app_inst and hasattr(self, '_scope_event_filter'):
                 app_inst.removeEventFilter(self._scope_event_filter)
             if hasattr(self, 'viewport'):
+                if getattr(self.viewport, '_is_recording', False):
+                    self._finalize_recording(open_explorer=False)
                 self.viewport.stop_camera()
             CaptureDeviceManager.device_in_use = False
         except Exception:
@@ -1590,7 +1653,7 @@ class CaptureWindow(QDialog):
         lbl_vt.setFixedWidth(70)
         lbl_vt.setStyleSheet("font-size: 11px; font-weight: bold; color: #FFFFFF;")
         self.combo_video_type = QComboBox()
-        self.combo_video_type.setFixedWidth(160)
+        self.combo_video_type.setFixedWidth(230)
         self.combo_video_type.setFixedHeight(22)
         video_types = [
             "NTSC (M) Standard, 7.5 IRE Black",
@@ -1613,6 +1676,7 @@ class CaptureWindow(QDialog):
         ]
         self.combo_video_type.addItems(video_types)
         self.combo_video_type.setCurrentText("SECAM (B) Standard")
+        self.combo_video_type.currentTextChanged.connect(self._on_video_type_changed)
         r1.addWidget(lbl_vt)
         r1.addWidget(self.combo_video_type)
         vt_col.addLayout(r1)
@@ -1623,7 +1687,7 @@ class CaptureWindow(QDialog):
         lbl_res.setFixedWidth(70)
         lbl_res.setStyleSheet("font-size: 11px; font-weight: bold; color: #FFFFFF;")
         self.combo_res = QComboBox()
-        self.combo_res.setFixedWidth(160)
+        self.combo_res.setFixedWidth(230)
         self.combo_res.setFixedHeight(22)
         self.combo_res.addItems([
             "1920x1080x24,15",
@@ -1632,9 +1696,14 @@ class CaptureWindow(QDialog):
             "640x480x30"
         ])
         self.combo_res.setCurrentText("1920x1080x24,15")
+        self.combo_res.currentTextChanged.connect(self._on_resolution_changed)
         r2.addWidget(lbl_res)
         r2.addWidget(self.combo_res)
         vt_col.addLayout(r2)
+
+        # Sync initial Video Type and Resolution with viewport
+        self._on_video_type_changed(self.combo_video_type.currentText(), show_toast=False)
+        self._on_resolution_changed(self.combo_res.currentText(), show_toast=False)
 
         bot_lay.addLayout(vt_col)
 
@@ -1665,7 +1734,7 @@ class CaptureWindow(QDialog):
         self.slider_sat, self.lbl_sat_val = self._create_stepped_slider("sat")
         slider_grid.addLayout(self.slider_sat, 1, 3)
 
-        bot_lay.addLayout(slider_grid)
+        bot_lay.addLayout(slider_grid, 1)
 
         bot_lay.addWidget(self._create_etched_sep())
 
@@ -1725,7 +1794,8 @@ class CaptureWindow(QDialog):
         slider = QSlider(Qt.Horizontal)
         slider.setRange(0, 100)
         slider.setValue(50)
-        slider.setFixedWidth(96)
+        slider.setMinimumWidth(150)
+        slider.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         slider.setStyleSheet("""
             QSlider::groove:horizontal {
                 height: 12px;
@@ -1791,6 +1861,30 @@ class CaptureWindow(QDialog):
     # =========================================================================
     # ACTIONS & WORKFLOW LOGIC
     # =========================================================================
+
+    def _parse_resolution_text(self, text: str):
+        """Parses strings like '1920x1080x24,15' or '1280x720x30' into (w, h, fps)."""
+        try:
+            parts = text.lower().split("x")
+            w = int(parts[0].strip())
+            h = int(parts[1].strip())
+            fps_str = parts[2].split(",")[0].strip() if len(parts) > 2 else "30"
+            fps = int(fps_str)
+            return w, h, fps
+        except Exception:
+            return 1920, 1080, 24
+
+    def _on_resolution_changed(self, text: str, show_toast: bool = True):
+        w, h, fps = self._parse_resolution_text(text)
+        self.viewport.set_resolution(w, h, fps)
+        if show_toast:
+            self.viewport.show_osd(f"Resolution: {w}×{h} @ {fps} FPS")
+
+    def _on_video_type_changed(self, standard: str, show_toast: bool = True):
+        fps = 30 if "ntsc" in standard.lower() else 25
+        self.viewport.set_video_standard(standard, fps=fps)
+        if show_toast:
+            self.viewport.show_osd(f"Video Type: {standard}")
 
     def _sync_adjustments(self):
         b = getattr(self, "_slider_widget_bright").value()
@@ -1865,47 +1959,86 @@ class CaptureWindow(QDialog):
                 self.btn_win_max.setText("🗗")
                 self.btn_win_max.setToolTip("Restore Down")
 
+    def _reset_auto_capture_state(self):
+        self._prev_still_gray = None
+        self._still_since = None
+        self._captured_for_current_still = False
+
     def _toggle_auto_capture(self, checked: bool):
+        self._reset_auto_capture_state()
         if checked:
-            self._auto_capture_timer.start(5000)
+            self._auto_capture_timer.start(200)
         else:
             self._auto_capture_timer.stop()
 
     def _handle_auto_capture(self):
-        if self.chk_auto_capture.isChecked():
-            self._handle_capture_image()
+        if not self.chk_auto_capture.isChecked():
+            return
+        frame = getattr(self.viewport, "_latest_cv_frame", None)
+        if frame is None:
+            self._reset_auto_capture_state()
+            return
 
-    def _toggle_recording(self):
-        if not self.viewport._is_recording:
+        small = cv2.resize(frame, (160, 90), interpolation=cv2.INTER_AREA)
+        gray = cv2.GaussianBlur(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY), (5, 5), 0)
+        now = time.monotonic()
+
+        if self._prev_still_gray is None:
+            self._prev_still_gray = gray
+            self._still_since = now
+            return
+
+        mean_diff = float(np.mean(cv2.absdiff(gray, self._prev_still_gray)))
+        self._prev_still_gray = gray
+
+        if mean_diff > 2.5:
+            # Camera moved: reset stillness timer and re-arm for next 3s hold
+            self._still_since = now
+            self._captured_for_current_still = False
+            return
+
+        if self._still_since is None:
+            self._still_since = now
+
+        if not self._captured_for_current_still and (now - self._still_since) >= 3.0:
+            self._captured_for_current_still = True
+            self._handle_capture_image(source="auto_still")
+
+    def _build_video_save_path(self, dest_dir: str) -> str:
+        """Builds a clean video filename using Report ID and Patient Name."""
+        raw_id = str(self.patient_data.get("report_id") or self.patient_data.get("auto_id") or "9").strip()
+        if raw_id.startswith("0000000"):
+            raw_id = raw_id.replace("0000000", "", 1)
+        safe_id = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in raw_id) or "0"
+
+        raw_name = str(self.patient_data.get("name") or "Patient").strip()
+        safe_name = "_".join(
+            "".join(c if c.isalnum() or c in ("-", "_", " ") else "_" for c in raw_name).split()
+        ) or "Patient"
+
+        candidate = os.path.join(dest_dir, f"Report_{safe_id}_{safe_name}.avi")
+        if os.path.exists(candidate):
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            auto_id = str(self.patient_data.get("auto_id", "9"))
-            rec_path = os.path.join(self._captures_dir, f"video_{auto_id}_{timestamp}.avi")
-            self.viewport.start_recording(rec_path)
-            self.btn_rec_vid.setText("⏹ Stop Rec")
-            self.btn_rec_vid.setStyleSheet("""
-                QPushButton {
-                    background: #DC2626;
-                    color: #FFFFFF;
-                    font-size: 11px;
-                    font-weight: 800;
-                    border: 1px solid #7F1D1D;
-                    border-radius: 3px;
-                }
-            """)
-        else:
-            saved_path = self.viewport.stop_recording()
-            self.btn_rec_vid.setText(" Record Video")
-            self.btn_rec_vid.setStyleSheet("""
-                QPushButton {
-                    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #D2D2D2);
-                    color: #CC0000;
-                    font-size: 11px;
-                    font-weight: 800;
-                    border: 1px solid #333333;
-                    border-radius: 3px;
-                }
-            """)
-            if saved_path:
+            candidate = os.path.join(dest_dir, f"Report_{safe_id}_{safe_name}_{timestamp}.avi")
+        return candidate
+
+    def _finalize_recording(self, open_explorer: bool = True) -> Optional[str]:
+        """Stops active recording, resets Record button UI, and reveals the saved video."""
+        saved_path = self.viewport.stop_recording()
+        self.btn_rec_vid.setText(" Record Video")
+        self.btn_rec_vid.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FFFFFF, stop:1 #D2D2D2);
+                color: #CC0000;
+                font-size: 11px;
+                font-weight: 800;
+                border: 1px solid #333333;
+                border-radius: 3px;
+            }
+        """)
+        if saved_path:
+            self.viewport.show_osd(f"🎬 Saved: {os.path.basename(saved_path)}", duration_ms=2200)
+            if open_explorer:
                 norm_path = os.path.normpath(saved_path)
                 try:
                     if os.path.exists(norm_path):
@@ -1920,10 +2053,50 @@ class CaptureWindow(QDialog):
                         os.startfile(folder)
                     except Exception:
                         pass
+        return saved_path
+
+    def _toggle_recording(self):
+        if not self.viewport._is_recording:
+            initial_dir = getattr(self, "_last_video_dir", None) or self._captures_dir
+            dest_dir = QFileDialog.getExistingDirectory(
+                self,
+                "Select Video Destination Folder",
+                initial_dir
+            )
+            if not dest_dir:
+                return
+            self._last_video_dir = dest_dir
+            rec_path = self._build_video_save_path(dest_dir)
+            self.viewport.start_recording(rec_path)
+            self.btn_rec_vid.setText("⏹ Stop Rec")
+            self.btn_rec_vid.setStyleSheet("""
+                QPushButton {
+                    background: #DC2626;
+                    color: #FFFFFF;
+                    font-size: 11px;
+                    font-weight: 800;
+                    border: 1px solid #7F1D1D;
+                    border-radius: 3px;
+                }
+            """)
+            self.viewport.show_osd(f"🔴 Recording: {os.path.basename(rec_path)}", duration_ms=1800)
+        else:
+            self._finalize_recording(open_explorer=True)
 
     def _handle_open_video(self):
+        initial_dir = getattr(self, "_last_video_dir", None) or self._captures_dir
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Recorded Video",
+            initial_dir,
+            "Video Files (*.avi *.mp4 *.mkv *.mov *.wmv);;All Files (*)"
+        )
+        if not file_path:
+            return
+        self._last_video_dir = os.path.dirname(file_path)
         self._manual_video_closed = False
-        self.viewport.start_camera()
+        self.viewport.start_video_file(file_path)
+        self.viewport.show_osd(f"▶ Playing: {os.path.basename(file_path)}", duration_ms=1800)
         self.btn_open_vid.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #D0F0D0, stop:1 #A0E0A0);
@@ -1946,6 +2119,8 @@ class CaptureWindow(QDialog):
         """)
 
     def _handle_close_video(self):
+        if getattr(self.viewport, '_is_recording', False):
+            self._finalize_recording(open_explorer=True)
         self._manual_video_closed = True
         self.viewport.stop_camera()
         self.btn_open_vid.setStyleSheet("""
