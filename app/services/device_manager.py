@@ -9,13 +9,14 @@ from PySide6.QtMultimedia import QMediaDevices
 
 
 class CaptureDeviceManager:
-    """Manages endoscopy video capture devices and queries USB ports in real time."""
+    """Manages endoscopy video capture devices and queries USB ports passively."""
     
     # Flag set to True when CaptureWindow is actively streaming video through DirectShow
     device_in_use: bool = False
     
     @classmethod
-    def get_connected_devices(cls) -> List[Dict[str, str]]:
+    def get_connected_devices(cls, probe_hardware: bool = False) -> List[Dict[str, str]]:
+        """Lists connected video input devices without activating the camera hardware by default."""
         devices = []
         try:
             video_inputs = QMediaDevices.videoInputs()
@@ -25,12 +26,12 @@ class CaptureDeviceManager:
                 name = cam.description() or f"Video Input {idx}"
                 cam_id = bytes(cam.id()).decode('utf-8', errors='ignore')
                 
-                # If camera is not actively in use by CaptureWindow, verify hardware responsiveness
-                if not cls.device_in_use:
+                # Only probe via DirectShow VideoCapture when explicitly requested;
+                # opening cv2.VideoCapture activates the camera hardware/LED.
+                if probe_hardware and not cls.device_in_use:
                     try:
                         cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
                         if not cap.isOpened():
-                            # Device is still reported in OS cache but physically unplugged!
                             continue
                         cap.release()
                     except Exception:
@@ -49,9 +50,8 @@ class CaptureDeviceManager:
                     "port": f"USB Port {idx + 1} (DirectShow)"
                 })
                 
-            # If QMediaDevices returned nothing or failed to update after hotplug,
-            # probe DirectShow index 0 directly with OpenCV as a fast physical verification
-            if not devices and not cls.device_in_use:
+            # Optional DirectShow index 0 fallback only when hardware probing is explicitly requested
+            if probe_hardware and not devices and not cls.device_in_use:
                 try:
                     cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
                     if cap.isOpened():
@@ -74,8 +74,8 @@ class CaptureDeviceManager:
         return devices
 
     @classmethod
-    def get_primary_usb_card(cls) -> Optional[Dict[str, str]]:
-        devices = cls.get_connected_devices()
+    def get_primary_usb_card(cls, probe_hardware: bool = False) -> Optional[Dict[str, str]]:
+        devices = cls.get_connected_devices(probe_hardware=probe_hardware)
         for dev in devices:
             if dev.get("is_usb"):
                 return dev

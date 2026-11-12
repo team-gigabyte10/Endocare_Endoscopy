@@ -242,10 +242,9 @@ class LiveVideoViewport(QLabel):
         self._flash_timer = QTimer(self)
         self._flash_timer.timeout.connect(self._decay_flash)
 
-        # Hardware capture thread
+        # Hardware capture thread (started explicitly when CaptureWindow is opened)
         self._cap_thread = VideoCaptureThread(device_index=0, parent=self)
         self._cap_thread.frame_ready.connect(self._on_new_camera_frame)
-        self._cap_thread.start()
 
         # OSD Toast notification on capture (Phase 2)
         self._osd_text = ""
@@ -253,10 +252,9 @@ class LiveVideoViewport(QLabel):
         self._osd_timer.setSingleShot(True)
         self._osd_timer.timeout.connect(self._clear_osd)
 
-        # 30-40 FPS Render loop
+        # 30-40 FPS Render loop (started with camera)
         self._render_timer = QTimer(self)
         self._render_timer.timeout.connect(self._on_tick)
-        self._render_timer.start(33)
 
     def _on_new_camera_frame(self, frame: np.ndarray):
         self._latest_cv_frame = frame
@@ -291,20 +289,33 @@ class LiveVideoViewport(QLabel):
         self.stop_camera()
         super().closeEvent(event)
 
+    def start_camera(self):
+        if not hasattr(self, '_cap_thread') or self._cap_thread is None:
+            self._cap_thread = VideoCaptureThread(device_index=0, parent=self)
+            self._cap_thread.frame_ready.connect(self._on_new_camera_frame)
+        if not self._cap_thread.isRunning():
+            self._cap_thread.start()
+        if hasattr(self, '_render_timer') and not self._render_timer.isActive():
+            self._render_timer.start(33)
+
     def stop_camera(self):
         if hasattr(self, '_render_timer') and self._render_timer.isActive():
             self._render_timer.stop()
         if hasattr(self, '_flash_timer') and self._flash_timer.isActive():
             self._flash_timer.stop()
         if hasattr(self, '_cap_thread') and self._cap_thread:
-            self._cap_thread.stop()
-            self._cap_thread.wait(1000)
+            if self._cap_thread.isRunning():
+                self._cap_thread.stop()
+                self._cap_thread.wait(1000)
+        CaptureDeviceManager.device_in_use = False
+        self._latest_cv_frame = None
         if self._record_writer:
             try:
                 self._record_writer.release()
             except Exception:
                 pass
             self._record_writer = None
+        self.update()
 
     def set_patient_info(self, info: dict):
         self._patient_info = info
@@ -618,6 +629,7 @@ class CaptureWindow(QDialog):
         
         self.captured_images: List[Dict[str, Any]] = []
         self._selected_card_widget = None
+        self._manual_video_closed = False
         self._auto_capture_timer = QTimer(self)
         self._auto_capture_timer.timeout.connect(self._handle_auto_capture)
 
@@ -628,6 +640,10 @@ class CaptureWindow(QDialog):
 
         # Connect Bronchoscope Remote Trigger (Middle Mouse Click Pulse)
         self._init_bronchoscope_trigger()
+
+        # If window was already shown during _apply_screen_geometry(), ensure camera starts now
+        if self.isVisible() and hasattr(self, 'viewport') and not self._manual_video_closed:
+            self.viewport.start_camera()
 
     def _get_fallback_patient(self) -> Dict[str, Any]:
         """Returns the canonical patient from reference screenshot (Nayem Islam, ID 9)."""
@@ -664,26 +680,35 @@ class CaptureWindow(QDialog):
             if hasattr(self, 'btn_win_max'):
                 self.btn_win_max.setText("🗗")
                 self.btn_win_max.setToolTip("Restore Down")
+        if hasattr(self, 'viewport') and not getattr(self, '_manual_video_closed', False):
+            self.viewport.start_camera()
+
+    def _cleanup_camera_and_triggers(self):
+        try:
+            if hasattr(self, '_auto_capture_timer') and self._auto_capture_timer.isActive():
+                self._auto_capture_timer.stop()
+            if hasattr(self, '_scope_poll_timer'):
+                self._scope_poll_timer.stop()
+            app_inst = QApplication.instance()
+            if app_inst and hasattr(self, '_scope_event_filter'):
+                app_inst.removeEventFilter(self._scope_event_filter)
+            if hasattr(self, 'viewport'):
+                self.viewport.stop_camera()
+            CaptureDeviceManager.device_in_use = False
+        except Exception:
+            CaptureDeviceManager.device_in_use = False
 
     def closeEvent(self, event):
-        if hasattr(self, '_scope_poll_timer'):
-            self._scope_poll_timer.stop()
-        app_inst = QApplication.instance()
-        if app_inst and hasattr(self, '_scope_event_filter'):
-            app_inst.removeEventFilter(self._scope_event_filter)
-        if hasattr(self, 'viewport'):
-            self.viewport.stop_camera()
+        self._cleanup_camera_and_triggers()
         super().closeEvent(event)
 
     def reject(self):
-        if hasattr(self, '_scope_poll_timer'):
-            self._scope_poll_timer.stop()
-        app_inst = QApplication.instance()
-        if app_inst and hasattr(self, '_scope_event_filter'):
-            app_inst.removeEventFilter(self._scope_event_filter)
-        if hasattr(self, 'viewport'):
-            self.viewport.stop_camera()
+        self._cleanup_camera_and_triggers()
         super().reject()
+
+    def done(self, result):
+        self._cleanup_camera_and_triggers()
+        super().done(result)
 
     def changeEvent(self, event):
         """Keep Full Screen / Restore button icon and tooltip synchronized with window state."""
@@ -1088,7 +1113,7 @@ class CaptureWindow(QDialog):
         vid_col.addLayout(vid_row)
 
         primary_card = CaptureDeviceManager.get_primary_usb_card()
-        card_name = primary_card.get("name", "USB2 Video")
+        card_name = (primary_card or {}).get("name", "No Capture Card")
         self.lbl_card_status = QLabel(f"Capture Card: {card_name}")
         self.lbl_card_status.setAlignment(Qt.AlignCenter)
         self.lbl_card_status.setStyleSheet("color: #FFFFFF; font-size: 11px; font-weight: 700; margin-top: 1px;")
@@ -1897,8 +1922,8 @@ class CaptureWindow(QDialog):
                         pass
 
     def _handle_open_video(self):
-        if not self.viewport._cap_thread.isRunning():
-            self.viewport._cap_thread.start()
+        self._manual_video_closed = False
+        self.viewport.start_camera()
         self.btn_open_vid.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #D0F0D0, stop:1 #A0E0A0);
@@ -1921,6 +1946,7 @@ class CaptureWindow(QDialog):
         """)
 
     def _handle_close_video(self):
+        self._manual_video_closed = True
         self.viewport.stop_camera()
         self.btn_open_vid.setStyleSheet("""
             QPushButton {
@@ -2241,17 +2267,25 @@ class CaptureWindow(QDialog):
                     self.report_editor.append(f"\n--- {sel_name} Standard Template ---\n{findings}\n")
                     break
 
+    def _run_modal_sub_dialog(self, dlg) -> int:
+        """Turns camera off while another page/dialog is open, then restores it on return."""
+        self.viewport.stop_camera()
+        try:
+            dlg.showMaximized()
+            return dlg.exec()
+        finally:
+            if self.isVisible() and not getattr(self, '_manual_video_closed', False):
+                self.viewport.start_camera()
+
     def _open_archive(self):
         from app.ui.dialogs.archive_dialog import ArchiveDialog
         dlg = ArchiveDialog(parent=self)
-        dlg.showMaximized()
-        dlg.exec()
+        self._run_modal_sub_dialog(dlg)
 
     def _open_new_patient(self):
         from app.ui.dialogs.new_patient_dialog import NewPatientDialog
         dlg = NewPatientDialog(parent=self)
-        dlg.showMaximized()
-        if dlg.exec() == QDialog.Accepted:
+        if self._run_modal_sub_dialog(dlg) == QDialog.Accepted:
             latest = self.db.get_patients(limit=1)
             if latest:
                 p = latest[0]
@@ -2263,15 +2297,3 @@ class CaptureWindow(QDialog):
                     self.lbl_title_status.setText(f"● LIVE  [{pat_id}] {p.get('name', 'Nayem Islam')}")
                 self.viewport.set_patient_info(self.patient_data)
                 self._load_patient_thumbnails()
-
-    def closeEvent(self, event):
-        try:
-            if hasattr(self, 'viewport'):
-                if hasattr(self.viewport, '_cap_thread') and self.viewport._cap_thread:
-                    self.viewport._cap_thread.stop()
-                if hasattr(self.viewport, '_render_timer') and self.viewport._render_timer:
-                    self.viewport._render_timer.stop()
-            CaptureDeviceManager.device_in_use = False
-        except Exception:
-            pass
-        super().closeEvent(event)

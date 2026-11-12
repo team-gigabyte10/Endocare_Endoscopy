@@ -1,7 +1,7 @@
 import sys
 import os
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QGridLayout, QLabel, QFrame, QPushButton, QComboBox,
     QToolButton, QMessageBox, QGraphicsDropShadowEffect, QDialog, QSizePolicy
 )
@@ -613,9 +613,16 @@ class MainWindow(QMainWindow):
 
     def _open_capture_window(self):
         from app.ui.capture_window import CaptureWindow
-        dlg = CaptureWindow(parent=self)
-        screen = self.screen() or QApplication.primaryScreen()
-        if screen:
-            dlg.setGeometry(screen.availableGeometry())
-        dlg.showMaximized()
-        dlg.exec()
+        if hasattr(self, "_device_poll_timer"):
+            self._device_poll_timer.stop()
+        try:
+            dlg = CaptureWindow(parent=self)
+            screen = self.screen() or QApplication.primaryScreen()
+            if screen:
+                dlg.setGeometry(screen.availableGeometry())
+            dlg.showMaximized()
+            dlg.exec()
+        finally:
+            if hasattr(self, "_device_poll_timer"):
+                self._device_poll_timer.start()
+            self._check_device_change()
