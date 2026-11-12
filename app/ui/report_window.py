@@ -19,12 +19,12 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QDate, QRect, QPoint, QSize, Signal, QTimer
 from PySide6.QtGui import (
-    QPixmap, QColor, QFont, QTextCursor, QTextListFormat,
+    QImage, QPixmap, QColor, QFont, QTextCursor, QTextListFormat,
     QTextBlockFormat, QTextCharFormat, QKeySequence, QShortcut,
     QPainter, QPen, QBrush, QLinearGradient, QRadialGradient,
     QIcon, QPalette
 )
-from PySide6.QtPrintSupport import QPrinter, QPrintDialog
+from PySide6.QtPrintSupport import QPrinter, QPrintDialog, QPrintPreviewDialog
 
 from app.services.database import DatabaseService
 from app.core.paths import get_asset_path, get_captures_dir
@@ -1722,8 +1722,8 @@ class ProcedureReportWindow(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Save Error", f"Unable to update patient record: {e}")
 
-    def _render_report_to_printer(self, printer: QPrinter):
-        """Renders report_sheet to a QPrinter while hiding UI-only checkboxes and hint text."""
+    def _capture_clean_report_image(self) -> QImage:
+        """Captures report_sheet at 2x resolution while hiding UI-only checkboxes, hint text, and drop shadow."""
         ui_only_widgets = [
             w for w in (
                 getattr(self, "chk_use_banner", None),
@@ -1733,42 +1733,74 @@ class ProcedureReportWindow(QWidget):
             if w is not None
         ]
         prev_hidden = [(w, w.isHidden()) for w in ui_only_widgets]
+        effect = self.report_sheet.graphicsEffect()
+        prev_effect_enabled = effect.isEnabled() if effect is not None else None
         try:
+            if effect is not None:
+                effect.setEnabled(False)
             for w in ui_only_widgets:
                 w.setVisible(False)
+            self.report_sheet.adjustSize()
             QApplication.processEvents()
 
-            painter = QPainter(printer)
-            if not painter.isActive():
-                return
-            try:
-                page_rect = printer.pageRect(QPrinter.DevicePixel)
-                sheet_size = self.report_sheet.size()
-                if sheet_size.width() > 0 and sheet_size.height() > 0:
-                    scale = min(
-                        page_rect.width() / sheet_size.width(),
-                        page_rect.height() / sheet_size.height(),
-                    )
-                    x_off = page_rect.x() + (page_rect.width() - sheet_size.width() * scale) / 2.0
-                    y_off = page_rect.y()
-                    painter.translate(x_off, y_off)
-                    painter.scale(scale, scale)
-                self.report_sheet.render(painter, QPoint())
-            finally:
-                painter.end()
+            sheet_size = self.report_sheet.size()
+            if sheet_size.width() <= 0 or sheet_size.height() <= 0:
+                sheet_size = self.report_sheet.sizeHint()
+                self.report_sheet.resize(sheet_size)
+
+            scale_factor = 2.0
+            img_w = max(1, int(sheet_size.width() * scale_factor))
+            img_h = max(1, int(sheet_size.height() * scale_factor))
+            sheet_img = QImage(img_w, img_h, QImage.Format_ARGB32)
+            sheet_img.fill(QColor("#FFFFFF"))
+            img_painter = QPainter(sheet_img)
+            img_painter.setRenderHint(QPainter.Antialiasing, True)
+            img_painter.setRenderHint(QPainter.TextAntialiasing, True)
+            img_painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            img_painter.scale(scale_factor, scale_factor)
+            self.report_sheet.render(img_painter, QPoint())
+            img_painter.end()
+            return sheet_img
         finally:
+            if effect is not None and prev_effect_enabled is not None:
+                effect.setEnabled(prev_effect_enabled)
             for w, was_hidden in prev_hidden:
                 w.setVisible(not was_hidden)
 
+    def _render_report_to_printer(self, printer: QPrinter, report_img: Optional[QImage] = None):
+        """Renders the clean report image onto a QPrinter scaled to the page rect."""
+        sheet_img = report_img if report_img is not None else self._capture_clean_report_image()
+        if sheet_img.isNull() or sheet_img.width() <= 0 or sheet_img.height() <= 0:
+            return
+        painter = QPainter(printer)
+        if not painter.isActive():
+            return
+        try:
+            painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
+            page_rect = printer.pageRect(QPrinter.DevicePixel)
+            fit_scale = min(
+                page_rect.width() / sheet_img.width(),
+                page_rect.height() / sheet_img.height(),
+            )
+            target_w = int(sheet_img.width() * fit_scale)
+            target_h = int(sheet_img.height() * fit_scale)
+            x_off = int(page_rect.x() + (page_rect.width() - target_w) / 2.0)
+            y_off = int(page_rect.y())
+            painter.drawImage(QRect(x_off, y_off, target_w, target_h), sheet_img)
+        finally:
+            painter.end()
+
     def _handle_print_report(self):
-        """Prints the clinical endoscopy report without UI-only checkbox/hint elements."""
+        """Opens a live Print Preview of the clinical endoscopy report before printing."""
         self._save_findings_to_db()
         self._save_clinic_header_settings()
+        report_img = self._capture_clean_report_image()
         printer = QPrinter(QPrinter.HighResolution)
-        dlg = QPrintDialog(printer, self)
-        dlg.setWindowTitle("Print Endoscopic Procedure Report")
-        if dlg.exec() == QDialog.Accepted:
-            self._render_report_to_printer(printer)
+        preview = QPrintPreviewDialog(printer, self)
+        preview.setWindowTitle("Print Preview • Endoscopic Procedure Report")
+        preview.paintRequested.connect(lambda p: self._render_report_to_printer(p, report_img))
+        preview.showMaximized()
+        preview.exec()
 
     def _handle_export_report(self):
         """Exports the procedure report as a clean PDF document."""
