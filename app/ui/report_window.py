@@ -17,12 +17,12 @@ from PySide6.QtWidgets import (
     QApplication, QFileDialog, QFontDialog, QScrollArea,
     QSizePolicy, QDialog
 )
-from PySide6.QtCore import Qt, QDate, QRect, QPoint, QSize, Signal, QTimer
+from PySide6.QtCore import Qt, QDate, QRect, QPoint, QSize, Signal, QTimer, QMarginsF
 from PySide6.QtGui import (
     QImage, QPixmap, QColor, QFont, QTextCursor, QTextListFormat,
     QTextBlockFormat, QTextCharFormat, QKeySequence, QShortcut,
     QPainter, QPen, QBrush, QLinearGradient, QRadialGradient,
-    QIcon, QPalette
+    QIcon, QPalette, QPageSize, QPageLayout
 )
 from PySide6.QtPrintSupport import QPrinter, QPrintDialog, QPrintPreviewDialog
 
@@ -70,9 +70,9 @@ class CircularPresetButton(QPushButton):
         super().__init__(parent)
         self.number = number
         self.color_theme = color_theme
-        self.setFixedSize(62, 62)
+        self.setFixedSize(54, 54)
         self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip(f"Switch to {number}-Image Grid Layout")
+        self.setToolTip(f"Switch to {number}-Image Layout")
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -99,9 +99,13 @@ class CircularPresetButton(QPushButton):
         painter.drawEllipse(QPoint(int(cx), int(cy)), int(r), int(r))
 
         # Inner colored circle with glossy radial gradient
-        inner_r = r - 4.5
+        inner_r = r - 4.0
         color_grad = QRadialGradient(cx - 3, cy - 3, inner_r)
-        if self.color_theme == "green":
+        if self.color_theme == "cyan":
+            color_grad.setColorAt(0.0, QColor("#38BDF8"))
+            color_grad.setColorAt(0.6, QColor("#0284C7"))
+            color_grad.setColorAt(1.0, QColor("#0369A1"))
+        elif self.color_theme == "green":
             color_grad.setColorAt(0.0, QColor("#34D399"))
             color_grad.setColorAt(0.6, QColor("#059669"))
             color_grad.setColorAt(1.0, QColor("#064E3B"))
@@ -114,29 +118,34 @@ class CircularPresetButton(QPushButton):
         painter.setBrush(QBrush(color_grad))
         painter.drawEllipse(QPoint(int(cx), int(cy)), int(inner_r), int(inner_r))
 
-        # Left side: Large bold number (4 or 6)
+        # Left side: Large bold number (5, 4, or 6)
         painter.setPen(QPen(QColor("#FFFFFF")))
-        font = QFont("Arial", 18, QFont.Bold)
+        font = QFont("Arial", 16, QFont.Bold)
         painter.setFont(font)
-        painter.drawText(QRect(int(cx - 22), int(cy - 14), 22, 28), Qt.AlignCenter, str(self.number))
+        painter.drawText(QRect(int(cx - 20), int(cy - 12), 18, 24), Qt.AlignCenter, str(self.number))
 
         # Right side: Grid mini squares graphic
-        painter.setPen(QPen(QColor("rgba(255, 255, 255, 0.8)"), 1))
-        painter.setBrush(QBrush(QColor("rgba(255, 255, 255, 0.25)")))
-        if self.number == 4:
-            # 2x2 grid
-            for gx in range(2):
-                for gy in range(2):
-                    rx = int(cx + 4 + gx * 8)
-                    ry = int(cy - 8 + gy * 8)
-                    painter.drawRect(rx, ry, 6, 6)
+        painter.setPen(QPen(QColor("rgba(255, 255, 255, 0.85)"), 1))
+        painter.setBrush(QBrush(QColor("rgba(255, 255, 255, 0.35)")))
+        if self.number == 5:
+            # Reverse "L" graphic: 3 vertical on right + 2 horizontal on bottom
+            painter.drawRect(int(cx + 6), int(cy - 12), 6, 5) # top right
+            painter.drawRect(int(cx + 6), int(cy - 5), 6, 5)  # mid right
+            painter.drawRect(int(cx + 6), int(cy + 2), 6, 5)  # bottom right
+            painter.drawRect(int(cx - 1), int(cy + 2), 6, 5)  # bottom left
+        elif self.number == 4:
+            # 1x4 vertical mini bars
+            for gy in range(4):
+                rx = int(cx + 5)
+                ry = int(cy - 13 + gy * 7)
+                painter.drawRect(rx, ry, 7, 5)
         else:
-            # 3x2 grid (6)
+            # 2 columns x 3 vertical rows grid (6)
             for gx in range(2):
                 for gy in range(3):
-                    rx = int(cx + 4 + gx * 8)
-                    ry = int(cy - 12 + gy * 8)
-                    painter.drawRect(rx, ry, 6, 6)
+                    rx = int(cx + 3 + gx * 7)
+                    ry = int(cy - 10 + gy * 7)
+                    painter.drawRect(rx, ry, 5, 5)
 
 
 class ImageSlotWidget(QFrame):
@@ -161,11 +170,12 @@ class ImageSlotWidget(QFrame):
         """)
         self.setObjectName("imageSlotContainer")
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setMinimumHeight(190)
+        self.setMinimumHeight(130)
+        self.setMaximumHeight(175)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(4)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(2)
 
         # Image Display Area
         self.img_label = QLabel()
@@ -184,10 +194,12 @@ class ImageSlotWidget(QFrame):
                 background: transparent;
                 border: none;
                 color: #000000;
-                font-size: 11px;
+                font-size: 10px;
                 font-family: 'Segoe UI', Arial, sans-serif;
-                font-weight: 500;
-                padding: 1px;
+                font-weight: 600;
+                padding: 1px 2px;
+                height: 15px;
+                margin: 0px;
             }
             QLineEdit:focus {
                 background: #FFFFFF;
@@ -282,7 +294,7 @@ class ProcedureReportWindow(QWidget):
         self._assets_dir = get_asset_path()
         self._captures_dir = get_captures_dir()
         
-        self.current_layout_preset = 2  # Default to 2 images as shown in screenshot
+        self.current_layout_preset = 5  # Default to 5-image Reverse 'L' layout (2 bottom of med + 3 vertical right)
         self.image_slots: List[ImageSlotWidget] = []
 
         # Build full UI
@@ -369,11 +381,11 @@ class ProcedureReportWindow(QWidget):
         sheet_container_layout.setContentsMargins(20, 16, 20, 16)
         sheet_container_layout.setAlignment(Qt.AlignCenter)
 
-        # The crisp white document sheet
+        # The crisp white document sheet (Standard A4 Portrait Dimensions)
         self.report_sheet = QFrame()
         self.report_sheet.setObjectName("reportSheet")
-        self.report_sheet.setMinimumWidth(880)
-        self.report_sheet.setMaximumWidth(1060)
+        self.report_sheet.setFixedWidth(800)
+        self.report_sheet.setMinimumHeight(1131)
         self.report_sheet.setStyleSheet("""
             QFrame#reportSheet {
                 background-color: #FFFFFF;
@@ -388,14 +400,14 @@ class ProcedureReportWindow(QWidget):
 
         # Subtle paper drop shadow
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(24)
-        shadow.setColor(QColor(0, 0, 0, 140))
+        shadow.setBlurRadius(20)
+        shadow.setColor(QColor(0, 0, 0, 130))
         shadow.setOffset(0, 4)
         self.report_sheet.setGraphicsEffect(shadow)
 
         sheet_layout = QVBoxLayout(self.report_sheet)
-        sheet_layout.setContentsMargins(24, 18, 24, 18)
-        sheet_layout.setSpacing(8)
+        sheet_layout.setContentsMargins(20, 14, 20, 14)
+        sheet_layout.setSpacing(5)
 
         # -------------------------------------------------------------
         # A. Header Area (Left-Top Banner Toggle + Editable Text / Banner)
@@ -858,15 +870,8 @@ class ProcedureReportWindow(QWidget):
         sheet_layout.addSpacing(6)
 
         # -------------------------------------------------------------
-        # D. Two-Column Split (Left: Findings & Toolbar | Right: Images)
+        # D. Dynamic Clinical Procedure Content Area (A4 Layout)
         # -------------------------------------------------------------
-        content_split = QHBoxLayout()
-        content_split.setSpacing(12)
-
-        # === LEFT COLUMN: Procedure, Indication, Medication, Toolbar, Findings ===
-        left_col = QVBoxLayout()
-        left_col.setSpacing(6)
-
         # 1. Procedure Line
         proc_line = QHBoxLayout()
         proc_line.setSpacing(6)
@@ -921,7 +926,6 @@ class ProcedureReportWindow(QWidget):
         btn_clear_proc = ClearCrossButton()
         btn_clear_proc.clicked.connect(lambda: self.combo_procedure.setCurrentText(""))
         proc_line.addWidget(btn_clear_proc)
-        left_col.addLayout(proc_line)
 
         # 2. Indication Line
         ind_line = QHBoxLayout()
@@ -936,13 +940,12 @@ class ProcedureReportWindow(QWidget):
                 background-color: #FFFFFF;
                 border: 1.5px solid #0284C7;
                 border-radius: 2px;
-                padding: 4px 6px;
+                padding: 3px 6px;
                 font-size: 12px;
                 color: #0F172A;
             }
         """)
         ind_line.addWidget(self.input_indication, 1)
-        left_col.addLayout(ind_line)
 
         # 3. Medication Line
         med_line = QHBoxLayout()
@@ -997,11 +1000,19 @@ class ProcedureReportWindow(QWidget):
         btn_clear_med = ClearCrossButton()
         btn_clear_med.clicked.connect(lambda: self.combo_medication.setCurrentText("N/A"))
         med_line.addWidget(btn_clear_med)
-        left_col.addLayout(med_line)
+
+        # Group Procedure, Indication, Medication into self.meta_widget
+        self.meta_widget = QWidget()
+        meta_lay = QVBoxLayout(self.meta_widget)
+        meta_lay.setContentsMargins(0, 0, 0, 0)
+        meta_lay.setSpacing(4)
+        meta_lay.addLayout(proc_line)
+        meta_lay.addLayout(ind_line)
+        meta_lay.addLayout(med_line)
 
         # 4. Rich-Text Editor Toolbar
-        toolbar_box = QFrame()
-        toolbar_box.setStyleSheet("""
+        self.toolbar_box = QFrame()
+        self.toolbar_box.setStyleSheet("""
             QFrame {
                 background-color: #F1F5F9;
                 border: 1px solid #CBD5E1;
@@ -1024,7 +1035,7 @@ class ProcedureReportWindow(QWidget):
                 background: #CBD5E1;
             }
         """)
-        tb_l = QHBoxLayout(toolbar_box)
+        tb_l = QHBoxLayout(self.toolbar_box)
         tb_l.setContentsMargins(4, 3, 4, 3)
         tb_l.setSpacing(3)
 
@@ -1120,22 +1131,19 @@ class ProcedureReportWindow(QWidget):
         btn_fonts = QPushButton("Fonts")
         btn_fonts.clicked.connect(self._open_font_dialog)
         tb_l.addWidget(btn_fonts)
-
         tb_l.addStretch()
-        left_col.addWidget(toolbar_box)
 
         # 5. Large Findings Rich Text Editor
         self.findings_edit = QTextEdit()
-        self.findings_edit.setMinimumHeight(340)
         self.findings_edit.setStyleSheet("""
             QTextEdit {
                 background-color: #FFFFFF;
                 border: 1px solid #94A3B8;
                 border-radius: 2px;
-                padding: 8px;
+                padding: 6px;
                 color: #0F172A;
                 font-family: 'Segoe UI', Arial, sans-serif;
-                font-size: 11pt;
+                font-size: 10.5pt;
             }
             QTextEdit:focus {
                 border: 1.5px solid #0284C7;
@@ -1147,24 +1155,57 @@ class ProcedureReportWindow(QWidget):
         self._report_autosave_timer.setInterval(400)
         self._report_autosave_timer.timeout.connect(self._save_findings_to_db)
         self.findings_edit.textChanged.connect(self._report_autosave_timer.start)
-        left_col.addWidget(self.findings_edit, 1)
 
-        content_split.addLayout(left_col, 56)
+        # 6. Attending Endoscopist Signature Line
+        self.sig_widget = QWidget()
+        sig_lay = QHBoxLayout(self.sig_widget)
+        sig_lay.setContentsMargins(0, 4, 4, 2)
+        sig_lay.addStretch()
+        sig_box = QVBoxLayout()
+        sig_box.setSpacing(2)
+        sig_line = QLabel("_______________________________________")
+        sig_line.setStyleSheet("color: #64748B; font-weight: bold; font-size: 11px;")
+        doc_name = self.patient_record.get("doctor_name", "Dr. Sarah Jenkins")
+        self.lbl_sig_doc = QLabel(f"Attending Endoscopist: {doc_name}")
+        self.lbl_sig_doc.setStyleSheet("color: #0F172A; font-weight: 700; font-size: 11px;")
+        sig_box.addWidget(sig_line, 0, Qt.AlignRight)
+        sig_box.addWidget(self.lbl_sig_doc, 0, Qt.AlignRight)
+        sig_lay.addLayout(sig_box)
 
-        # === RIGHT COLUMN: Image Display Area ===
-        self.images_col = QVBoxLayout()
-        self.images_col.setSpacing(8)
+        # Assemble findings + toolbar + signature into self.findings_widget
+        self.findings_widget = QWidget()
+        findings_lay = QVBoxLayout(self.findings_widget)
+        findings_lay.setContentsMargins(0, 0, 0, 0)
+        findings_lay.setSpacing(4)
+        findings_lay.addWidget(self.toolbar_box)
+        findings_lay.addWidget(self.findings_edit, 1)
+        findings_lay.addWidget(self.sig_widget)
 
-        # Container inside images_col to host the layout grid/stack
+        # Horizontal container for 2 images bottom of Medication (Reverse "L" horizontal arm)
+        self.med_images_container = QWidget()
+        self.med_images_layout = QHBoxLayout(self.med_images_container)
+        self.med_images_layout.setContentsMargins(0, 2, 0, 2)
+        self.med_images_layout.setSpacing(3)
+
+        # Vertical container for 3 images on the right side (Reverse "L" vertical arm)
+        self.right_images_container = QWidget()
+        self.right_images_layout = QVBoxLayout(self.right_images_container)
+        self.right_images_layout.setContentsMargins(0, 0, 0, 0)
+        self.right_images_layout.setSpacing(3)
+
+        # Container to host dynamic image slots with minimal gap (6-image grid fallback)
         self.images_container = QWidget()
         self.images_grid_layout = QGridLayout(self.images_container)
         self.images_grid_layout.setContentsMargins(0, 0, 0, 0)
-        self.images_grid_layout.setSpacing(8)
+        self.images_grid_layout.setHorizontalSpacing(3)
+        self.images_grid_layout.setVerticalSpacing(3)
 
-        self.images_col.addWidget(self.images_container, 1)
-        content_split.addLayout(self.images_col, 44)
-
-        sheet_layout.addLayout(content_split, 1)
+        # Central dynamic body container inside report sheet
+        self.body_container = QWidget()
+        self.body_layout = QVBoxLayout(self.body_container)
+        self.body_layout.setContentsMargins(0, 0, 0, 0)
+        self.body_layout.setSpacing(6)
+        sheet_layout.addWidget(self.body_container, 1)
 
         sheet_container_layout.addWidget(self.report_sheet)
         scroll.setWidget(sheet_container)
@@ -1273,17 +1314,24 @@ class ProcedureReportWindow(QWidget):
 
         s_layout.addSpacing(4)
 
-        # --- Circular Layout Preset Buttons: [4] Green and [6] Red ---
+        # --- Circular Layout Preset Buttons: [5] Reverse 'L' Cyan, [4] Green, [6] Red ---
         preset_row = QHBoxLayout()
         preset_row.setAlignment(Qt.AlignCenter)
-        preset_row.setSpacing(14)
+        preset_row.setSpacing(6)
+
+        self.btn_preset_5 = CircularPresetButton(5, color_theme="cyan", parent=self)
+        self.btn_preset_5.setToolTip("Switch to Reverse 'L' Layout (2 Bottom of Medication + 3 Vertical Right)")
+        self.btn_preset_5.clicked.connect(lambda: self._on_preset_clicked(5))
 
         self.btn_preset_4 = CircularPresetButton(4, color_theme="green", parent=self)
-        self.btn_preset_4.clicked.connect(lambda: self._rebuild_image_layout(4))
+        self.btn_preset_4.setToolTip("Switch to 4-Image Vertical Stack")
+        self.btn_preset_4.clicked.connect(lambda: self._on_preset_clicked(4))
 
         self.btn_preset_6 = CircularPresetButton(6, color_theme="red", parent=self)
-        self.btn_preset_6.clicked.connect(lambda: self._rebuild_image_layout(6))
+        self.btn_preset_6.setToolTip("Switch to 6-Image Layout")
+        self.btn_preset_6.clicked.connect(lambda: self._on_preset_clicked(6))
 
+        preset_row.addWidget(self.btn_preset_5)
         preset_row.addWidget(self.btn_preset_4)
         preset_row.addWidget(self.btn_preset_6)
         s_layout.addLayout(preset_row)
@@ -1446,54 +1494,133 @@ class ProcedureReportWindow(QWidget):
         parent_layout.addWidget(sidebar)
 
     # =========================================================================
-    # DYNAMIC IMAGE LAYOUT MANAGER (2, 4, or 6 Image Grid)
+    # DYNAMIC IMAGE LAYOUT MANAGER (Reverse 'L', 4 Vertical, or 6 Grid)
     # =========================================================================
 
-    def _rebuild_image_layout(self, slot_count: int):
-        """Switches image presentation between 2 (vertical stack), 4 (2x2), and 6 (3x2)."""
-        # Toggle back to 2 if clicking the same preset button
-        if slot_count == self.current_layout_preset and slot_count != 2:
-            slot_count = 2
-        self.current_layout_preset = slot_count
+    def _apply_report_layout(self, slot_count: int):
+        """
+        Dynamically configures report body layout for standard A4 page:
+        - Preset 5 (Reverse 'L'): 2 images bottom of medication horizontally + 3 images vertically on right side.
+        - Preset 4 (or 2): 4 (or 2) images vertically stacked in 1 column on right side.
+        - Preset 6: 6 images (2 cols x 3 vertical rows) on right side.
+        """
+        # Detach primary widgets from current parent/layout
+        for w in (self.meta_widget, self.findings_widget, self.med_images_container, self.right_images_container, self.images_container):
+            w.setParent(None)
 
-        # Clear existing layout items
+        # Clear body layout
+        while self.body_layout.count():
+            item = self.body_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+
+        # Clear sub-layouts
+        while self.med_images_layout.count():
+            item = self.med_images_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+
+        while self.right_images_layout.count():
+            item = self.right_images_layout.takeAt(0)
+            if item.widget():
+                item.widget().setParent(None)
+
         while self.images_grid_layout.count():
             item = self.images_grid_layout.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.setParent(None)
+            if item.widget():
+                item.widget().setParent(None)
 
-        self.image_slots.clear()
-
-        # Load available patient images
+        # Preserve any currently assigned images / captions across preset toggles
+        existing_images = [(s.image_path, s.title_input.text()) for s in self.image_slots]
         auto_id = self.patient_record.get("auto_id", "")
         stored_images = self.db.get_study_images(auto_id) if auto_id else []
 
-        # Fallback sample images if database has fewer
-        fallback_files = [
-            os.path.join(self._assets_dir, "preview_endo.png"),
-            os.path.join(self._assets_dir, "preview_ercp.png"),
-            os.path.join(self._assets_dir, "preview_usg.png")
-        ]
-
-        # Populate slots
-        cols = 1 if slot_count == 2 else 2
+        self.image_slots.clear()
         for idx in range(slot_count):
             slot = ImageSlotWidget(idx, parent=self)
             self.image_slots.append(slot)
-
-            # Match stored image from database if present, otherwise clean lavender box
             img_file = None
             caption = "(Image Title)"
-            if idx < len(stored_images):
+            if idx < len(existing_images) and existing_images[idx][0]:
+                img_file, caption = existing_images[idx]
+            elif idx < len(stored_images):
                 img_file = stored_images[idx].get("file_path")
                 caption = stored_images[idx].get("caption") or "(Image Title)"
-
             slot.set_image(img_file, caption=caption)
 
-            r = idx if slot_count == 2 else idx // 2
-            c = 0 if slot_count == 2 else idx % 2
-            self.images_grid_layout.addWidget(slot, r, c)
+        two_col = QWidget()
+        two_col_lay = QHBoxLayout(two_col)
+        two_col_lay.setContentsMargins(0, 0, 0, 0)
+        two_col_lay.setSpacing(8)
+
+        left_col = QVBoxLayout()
+        left_col.setContentsMargins(0, 0, 0, 0)
+        left_col.setSpacing(4)
+        left_col.addWidget(self.meta_widget)
+
+        right_col = QVBoxLayout()
+        right_col.setContentsMargins(0, 0, 0, 0)
+        right_col.setSpacing(0)
+
+        if slot_count == 5:
+            # Reverse "L" layout:
+            # 1. 2 images horizontally directly bottom of Medication
+            self.med_images_layout.addWidget(self.image_slots[0], 1)
+            self.med_images_layout.addWidget(self.image_slots[1], 1)
+            left_col.addWidget(self.med_images_container)
+
+            # 2. 3 images vertically on the right side
+            for idx in (2, 3, 4):
+                self.right_images_layout.addWidget(self.image_slots[idx])
+            right_col.addWidget(self.right_images_container)
+            right_col.addStretch(1)
+
+            two_col_lay.addLayout(left_col, 56)
+            two_col_lay.addLayout(right_col, 44)
+
+            self.findings_edit.setMinimumHeight(150)
+            self.findings_edit.setMaximumHeight(230)
+
+        elif slot_count == 6:
+            # 2 columns x 3 vertical rows on the right side
+            for idx in range(6):
+                r = idx // 2
+                c = idx % 2
+                self.images_grid_layout.addWidget(self.image_slots[idx], r, c)
+            right_col.addWidget(self.images_container)
+            right_col.addStretch(1)
+
+            two_col_lay.addLayout(left_col, 53)
+            two_col_lay.addLayout(right_col, 47)
+
+            self.findings_edit.setMinimumHeight(280)
+            self.findings_edit.setMaximumHeight(16777215)
+
+        else:
+            # 4 (or 2) images vertically stacked in 1 column on right side
+            for idx in range(slot_count):
+                self.right_images_layout.addWidget(self.image_slots[idx])
+            right_col.addWidget(self.right_images_container)
+            right_col.addStretch(1)
+
+            two_col_lay.addLayout(left_col, 56)
+            two_col_lay.addLayout(right_col, 44)
+
+            self.findings_edit.setMinimumHeight(280)
+            self.findings_edit.setMaximumHeight(16777215)
+
+        left_col.addWidget(self.findings_widget, 1)
+        self.body_layout.addWidget(two_col)
+
+    def _on_preset_clicked(self, slot_count: int):
+        """Switches to requested preset (or toggles to 4 if clicked again)."""
+        target = 4 if (slot_count == self.current_layout_preset and slot_count != 4) else slot_count
+        self._rebuild_image_layout(target)
+
+    def _rebuild_image_layout(self, slot_count: int):
+        """Switches image presentation between Reverse 'L' (5), 4 (vertical stack), and 6."""
+        self.current_layout_preset = slot_count
+        self._apply_report_layout(slot_count)
 
     def _load_patient_data(self):
         """Populates patient header fields with current record details."""
@@ -1526,6 +1653,10 @@ class ProcedureReportWindow(QWidget):
 
         ind = rec.get("indication") or "hjj"
         self.input_indication.setText(ind)
+
+        doc_name = rec.get("doctor_name") or rec.get("doctor") or "Dr. Sarah Jenkins"
+        if hasattr(self, "lbl_sig_doc"):
+            self.lbl_sig_doc.setText(f"Attending Endoscopist: {doc_name}")
 
         # Load saved report contents from SQLite if available, else fallback
         saved_rep = self.db.get_patient_report(aid)
@@ -1723,12 +1854,13 @@ class ProcedureReportWindow(QWidget):
             QMessageBox.warning(self, "Save Error", f"Unable to update patient record: {e}")
 
     def _capture_clean_report_image(self) -> QImage:
-        """Captures report_sheet at 2x resolution while hiding UI-only checkboxes, hint text, and drop shadow."""
+        """Captures report_sheet at 2x resolution while hiding UI-only checkboxes, hint text, editing toolbars, and drop shadow."""
         ui_only_widgets = [
             w for w in (
                 getattr(self, "chk_use_banner", None),
                 getattr(self, "btn_choose_banner", None),
                 getattr(self, "lbl_disclaimer", None),
+                getattr(self, "toolbar_box", None),
             )
             if w is not None
         ]
@@ -1768,7 +1900,7 @@ class ProcedureReportWindow(QWidget):
                 w.setVisible(not was_hidden)
 
     def _render_report_to_printer(self, printer: QPrinter, report_img: Optional[QImage] = None):
-        """Renders the clean report image onto a QPrinter scaled to the page rect."""
+        """Renders the clean report image onto a QPrinter scaled to the A4 page rect."""
         sheet_img = report_img if report_img is not None else self._capture_clean_report_image()
         if sheet_img.isNull() or sheet_img.width() <= 0 or sheet_img.height() <= 0:
             return
@@ -1785,25 +1917,28 @@ class ProcedureReportWindow(QWidget):
             target_w = int(sheet_img.width() * fit_scale)
             target_h = int(sheet_img.height() * fit_scale)
             x_off = int(page_rect.x() + (page_rect.width() - target_w) / 2.0)
-            y_off = int(page_rect.y())
+            y_off = int(page_rect.y() + (page_rect.height() - target_h) / 2.0)
             painter.drawImage(QRect(x_off, y_off, target_w, target_h), sheet_img)
         finally:
             painter.end()
 
     def _handle_print_report(self):
-        """Opens a live Print Preview of the clinical endoscopy report before printing."""
+        """Opens a live Print Preview of the clinical endoscopy report (A4) before printing."""
         self._save_findings_to_db()
         self._save_clinic_header_settings()
         report_img = self._capture_clean_report_image()
         printer = QPrinter(QPrinter.HighResolution)
+        printer.setPageSize(QPageSize(QPageSize.A4))
+        printer.setPageOrientation(QPageLayout.Portrait)
+        printer.setPageMargins(QMarginsF(8, 8, 8, 8), QPageLayout.Millimeter)
         preview = QPrintPreviewDialog(printer, self)
-        preview.setWindowTitle("Print Preview • Endoscopic Procedure Report")
+        preview.setWindowTitle("Print Preview • Endoscopic Procedure Report (A4)")
         preview.paintRequested.connect(lambda p: self._render_report_to_printer(p, report_img))
         preview.showMaximized()
         preview.exec()
 
     def _handle_export_report(self):
-        """Exports the procedure report as a clean PDF document."""
+        """Exports the procedure report as a clean A4 PDF document."""
         self._save_findings_to_db()
         self._save_clinic_header_settings()
 
@@ -1826,6 +1961,9 @@ class ProcedureReportWindow(QWidget):
         try:
             printer = QPrinter(QPrinter.HighResolution)
             printer.setOutputFormat(QPrinter.PdfFormat)
+            printer.setPageSize(QPageSize(QPageSize.A4))
+            printer.setPageOrientation(QPageLayout.Portrait)
+            printer.setPageMargins(QMarginsF(8, 8, 8, 8), QPageLayout.Millimeter)
             printer.setOutputFileName(path)
             self._render_report_to_printer(printer)
             if os.path.exists(path) and os.path.getsize(path) > 0:
