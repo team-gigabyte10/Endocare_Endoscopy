@@ -146,20 +146,25 @@ class HomeButton(QPushButton):
 
 class VideoCaptureThread(QThread):
     """
-    Background worker thread polling DirectShow video frames at up to 60 FPS.
-    Prevents any UI stutter and cleanly handles connect/disconnect.
+    Background worker thread polling DirectShow video frames or playing video files.
+    Prevents any UI stutter and cleanly handles connect/disconnect, seeking, and pause/play.
     """
     frame_ready = Signal(np.ndarray)
+    playback_progress = Signal(int, int)  # current_frame, total_frames
 
     def __init__(self, device_index=0, video_path: Optional[str] = None, parent=None):
         super().__init__(parent)
         self.device_index = device_index
         self.video_path = video_path
         self._running = False
+        self._paused = False
+        self._seek_target: Optional[int] = None
         self._cap = None
         self.target_width = 1920
         self.target_height = 1080
         self.target_fps = 24
+        self.total_frames = 0
+        self.current_frame_idx = 0
         self._reconfig_pending = False
 
     def set_format(self, width: int, height: int, fps: int):
@@ -167,6 +172,19 @@ class VideoCaptureThread(QThread):
         self.target_height = int(height)
         self.target_fps = int(fps)
         self._reconfig_pending = True
+
+    def seek(self, frame_idx: int):
+        self._seek_target = max(0, int(frame_idx))
+
+    def toggle_pause(self) -> bool:
+        self._paused = not self._paused
+        return self._paused
+
+    def is_paused(self) -> bool:
+        return self._paused
+
+    def set_paused(self, paused: bool):
+        self._paused = paused
 
     def _apply_capture_props(self):
         if self._cap and self._cap.isOpened():
@@ -189,6 +207,7 @@ class VideoCaptureThread(QThread):
                     if not fps or fps <= 0 or fps > 60:
                         fps = 30.0
                     delay_ms = max(15, int(1000.0 / fps))
+                    self.total_frames = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
             else:
                 self._cap = cv2.VideoCapture(self.device_index, cv2.CAP_DSHOW)
                 self._apply_capture_props()
@@ -201,18 +220,35 @@ class VideoCaptureThread(QThread):
                     self._apply_capture_props()
                 except Exception:
                     self._reconfig_pending = False
+
             if self._cap and self._cap.isOpened():
+                if is_file and self._seek_target is not None:
+                    try:
+                        self._cap.set(cv2.CAP_PROP_POS_FRAMES, self._seek_target)
+                        self.current_frame_idx = self._seek_target
+                    except Exception:
+                        pass
+                    self._seek_target = None
+
+                if is_file and self._paused:
+                    self.msleep(30)
+                    continue
+
                 ret, frame = self._cap.read()
                 if ret and frame is not None:
                     if not is_file and (frame.shape[1] != self.target_width or frame.shape[0] != self.target_height):
                         frame = cv2.resize(frame, (self.target_width, self.target_height), interpolation=cv2.INTER_AREA)
+                    if is_file:
+                        self.current_frame_idx = int(self._cap.get(cv2.CAP_PROP_POS_FRAMES))
+                        self.playback_progress.emit(self.current_frame_idx, max(1, self.total_frames))
                     self.frame_ready.emit(frame)
                     if is_file:
                         self.msleep(delay_ms)
                 else:
                     if is_file:
-                        # Loop video playback so user can capture frames anytime
+                        # Loop video playback
                         self._cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        self.current_frame_idx = 0
                         self.msleep(delay_ms)
                     else:
                         self.msleep(30)
@@ -260,7 +296,7 @@ class LiveVideoViewport(QLabel):
         self.contrast = 50
         self.hue = 50
         self.saturation = 50
-        self.video_standard = "SECAM (B) Standard"
+        self.video_standard = "PAL (B) Standard"
         self.target_width = 1920
         self.target_height = 1080
         self.target_fps = 24
@@ -440,6 +476,20 @@ class LiveVideoViewport(QLabel):
         self._cap_thread.start()
         if hasattr(self, '_render_timer') and not self._render_timer.isActive():
             self._render_timer.start(33)
+
+    def seek_video_frame(self, frame_idx: int):
+        if hasattr(self, '_cap_thread') and self._cap_thread and self._is_playing_file:
+            self._cap_thread.seek(frame_idx)
+
+    def toggle_video_pause(self) -> bool:
+        if hasattr(self, '_cap_thread') and self._cap_thread and self._is_playing_file:
+            return self._cap_thread.toggle_pause()
+        return False
+
+    def is_video_paused(self) -> bool:
+        if hasattr(self, '_cap_thread') and self._cap_thread and self._is_playing_file:
+            return self._cap_thread.is_paused()
+        return False
 
     def stop_camera(self):
         if hasattr(self, '_render_timer') and self._render_timer.isActive():
@@ -1766,6 +1816,104 @@ class CaptureWindow(QDialog):
         """)
         vp_lay.addWidget(vp_header)
 
+        # Video Playback Progress Bar (Visible on top of video player during video playback)
+        self.video_playback_toolbar = QFrame()
+        self.video_playback_toolbar.setFixedHeight(34)
+        self.video_playback_toolbar.setStyleSheet("""
+            QFrame {
+                background: #111827;
+                border-bottom: 1px solid #1F2937;
+                padding: 2px 8px;
+            }
+        """)
+        vid_tb_lay = QHBoxLayout(self.video_playback_toolbar)
+        vid_tb_lay.setContentsMargins(8, 2, 8, 2)
+        vid_tb_lay.setSpacing(10)
+
+        # Play / Pause Toggle Button
+        self.btn_vid_play_pause = QPushButton("⏸")
+        self.btn_vid_play_pause.setFixedSize(28, 24)
+        self.btn_vid_play_pause.setCursor(Qt.PointingHandCursor)
+        self.btn_vid_play_pause.setToolTip("Play / Pause Video")
+        self.btn_vid_play_pause.setStyleSheet("""
+            QPushButton {
+                background: #1E293B;
+                color: #38BDF8;
+                font-size: 13px;
+                font-weight: bold;
+                border: 1px solid #334155;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background: #38BDF8;
+                color: #0F172A;
+            }
+        """)
+        self.btn_vid_play_pause.clicked.connect(self._toggle_video_play_pause)
+        vid_tb_lay.addWidget(self.btn_vid_play_pause)
+
+        # Interactive Seek/Progress Slider
+        self.video_progress_slider = QSlider(Qt.Horizontal)
+        self.video_progress_slider.setRange(0, 1000)
+        self.video_progress_slider.setValue(0)
+        self.video_progress_slider.setCursor(Qt.PointingHandCursor)
+        self.video_progress_slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                height: 6px;
+                background: #334155;
+                border-radius: 3px;
+            }
+            QSlider::sub-page:horizontal {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #06B6D4, stop:1 #10B981);
+                border-radius: 3px;
+            }
+            QSlider::handle:horizontal {
+                background: #FFFFFF;
+                border: 2px solid #10B981;
+                width: 14px;
+                height: 14px;
+                margin: -4px 0;
+                border-radius: 7px;
+            }
+            QSlider::handle:horizontal:hover {
+                background: #10B981;
+                border: 2px solid #FFFFFF;
+            }
+        """)
+        self.video_progress_slider.sliderMoved.connect(self._on_seek_slider_moved)
+        self.video_progress_slider.sliderPressed.connect(self._on_seek_slider_pressed)
+        self.video_progress_slider.sliderReleased.connect(self._on_seek_slider_released)
+        vid_tb_lay.addWidget(self.video_progress_slider, 1)
+
+        # Video Timestamp
+        self.lbl_video_time = QLabel("00:00 / 00:00")
+        self.lbl_video_time.setStyleSheet("color: #94A3B8; font-size: 11px; font-weight: 600; min-width: 85px;")
+        vid_tb_lay.addWidget(self.lbl_video_time)
+
+        # Snap Frame Button right on top toolbar
+        self.btn_snap_frame = QPushButton("📸 Snap Frame")
+        self.btn_snap_frame.setCursor(Qt.PointingHandCursor)
+        self.btn_snap_frame.setFixedHeight(24)
+        self.btn_snap_frame.setStyleSheet("""
+            QPushButton {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #10B981, stop:1 #059669);
+                color: #FFFFFF;
+                font-size: 11px;
+                font-weight: 700;
+                border: 1px solid #047857;
+                border-radius: 4px;
+                padding: 0 10px;
+            }
+            QPushButton:hover {
+                background: #34D399;
+            }
+        """)
+        self.btn_snap_frame.clicked.connect(lambda: self._handle_capture_image("video_snap"))
+        vid_tb_lay.addWidget(self.btn_snap_frame)
+
+        self.video_playback_toolbar.setVisible(False)
+        vp_lay.addWidget(self.video_playback_toolbar)
+
         # Live Viewport Widget
         self.viewport = LiveVideoViewport(self)
         self.viewport.set_patient_info(self.patient_data)
@@ -2005,7 +2153,7 @@ class CaptureWindow(QDialog):
             "NTSC (M) Standard, 7.5 IRE Black",
             "NTSC (M) Standard, 0 IRE Black Jpn",
             "NTSC 433",
-            "PAL (B) Standard [Default]",
+            "PAL (B) Standard",
             "PAL (D) Standard",
             "PAL (H) Standard",
             "PAL (I) Standard",
@@ -2021,7 +2169,7 @@ class CaptureWindow(QDialog):
             "SECAM (L1) Standard"
         ]
         self.combo_video_type.addItems(video_types)
-        self.combo_video_type.setCurrentText("SECAM (B) Standard")
+        self.combo_video_type.setCurrentText("PAL (B) Standard")
         self.combo_video_type.currentTextChanged.connect(self._on_video_type_changed)
         r1.addWidget(lbl_vt)
         r1.addWidget(self.combo_video_type)
@@ -2513,6 +2661,44 @@ class CaptureWindow(QDialog):
         else:
             self._finalize_recording(open_explorer=True)
 
+    def _toggle_video_play_pause(self):
+        if hasattr(self, 'viewport'):
+            is_paused = self.viewport.toggle_video_pause()
+            self.btn_vid_play_pause.setText("▶" if is_paused else "⏸")
+            self.btn_vid_play_pause.setToolTip("Resume Video" if is_paused else "Pause Video")
+
+    def _on_seek_slider_pressed(self):
+        self._slider_is_seeking = True
+
+    def _on_seek_slider_moved(self, value: int):
+        if hasattr(self, 'viewport') and getattr(self.viewport, '_cap_thread', None):
+            total_frames = getattr(self.viewport._cap_thread, 'total_frames', 0)
+            if total_frames > 0:
+                target_frame = int((value / 1000.0) * total_frames)
+                self.viewport.seek_video_frame(target_frame)
+
+    def _on_seek_slider_released(self):
+        self._slider_is_seeking = False
+        val = self.video_progress_slider.value()
+        self._on_seek_slider_moved(val)
+
+    def _on_video_playback_progress(self, current_frame: int, total_frames: int):
+        if getattr(self, '_slider_is_seeking', False):
+            return
+        if total_frames > 0:
+            val = int((current_frame / float(total_frames)) * 1000.0)
+            self.video_progress_slider.blockSignals(True)
+            self.video_progress_slider.setValue(val)
+            self.video_progress_slider.blockSignals(False)
+
+            # Format timestamp assuming 30 fps
+            fps = 30.0
+            cur_sec = int(current_frame / fps)
+            tot_sec = int(total_frames / fps)
+            cur_str = f"{cur_sec // 60:02d}:{cur_sec % 60:02d}"
+            tot_str = f"{tot_sec // 60:02d}:{tot_sec % 60:02d}"
+            self.lbl_video_time.setText(f"{cur_str} / {tot_str}")
+
     def _handle_open_video(self):
         initial_dir = getattr(self, "_last_video_dir", None) or self._captures_dir
         file_path, _ = QFileDialog.getOpenFileName(
@@ -2526,7 +2712,13 @@ class CaptureWindow(QDialog):
         self._last_video_dir = os.path.dirname(file_path)
         self._manual_video_closed = False
         self.viewport.start_video_file(file_path)
-        self.viewport.show_osd(f"▶ Playing: {os.path.basename(file_path)}", duration_ms=1800)
+
+        # Connect playback progress signal from cap thread
+        if hasattr(self.viewport, '_cap_thread') and self.viewport._cap_thread:
+            self.viewport._cap_thread.playback_progress.connect(self._on_video_playback_progress)
+
+        self.btn_vid_play_pause.setText("⏸")
+        self.video_playback_toolbar.setVisible(True)
         self.btn_open_vid.setStyleSheet("""
             QPushButton {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #D0F0D0, stop:1 #A0E0A0);
@@ -2552,6 +2744,7 @@ class CaptureWindow(QDialog):
         if getattr(self.viewport, '_is_recording', False):
             self._finalize_recording(open_explorer=True)
         self._manual_video_closed = True
+        self.video_playback_toolbar.setVisible(False)
         self.viewport.stop_camera()
         self.btn_open_vid.setStyleSheet("""
             QPushButton {
@@ -2659,11 +2852,6 @@ class CaptureWindow(QDialog):
         }
         self.captured_images.append(record)
         self._add_thumbnail_to_tray(record, highlight=True)
-
-        # Phase 2: Live HUD OSD Toast confirmation on live video
-        source_str = str(source).lower() if isinstance(source, str) else "capture"
-        tag_label = "Bronchoscope" if any(k in source_str for k in ("mbutton", "scope", "middle")) else "Capture"
-        self.viewport.show_osd(f"📷 {tag_label} Captured • Frame #{frame_idx:02d}")
 
     def _clear_tray(self):
         """Clears all thumbnail cards from the tray."""
