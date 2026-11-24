@@ -617,10 +617,6 @@ class MainWindow(QMainWindow):
             self._device_poll_timer.stop()
         try:
             dlg = CaptureWindow(parent=self)
-            screen = self.screen() or QApplication.primaryScreen()
-            if screen:
-                dlg.setGeometry(screen.availableGeometry())
-            dlg.showMaximized()
             dlg.exec()
         finally:
             if hasattr(self, "_device_poll_timer"):

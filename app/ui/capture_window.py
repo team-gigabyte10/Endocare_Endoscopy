@@ -953,24 +953,28 @@ class CaptureWindow(QDialog):
         }
 
     def _apply_screen_geometry(self):
-        screen = QApplication.primaryScreen()
+        screen = self.screen() or QApplication.primaryScreen()
         avail = screen.availableGeometry() if screen else None
         if avail:
-            self.setGeometry(avail)
-        self.showMaximized()
+            # Set comfortable floating movable dialog dimensions (~88% of screen)
+            w = min(1500, int(avail.width() * 0.90))
+            h = min(920, int(avail.height() * 0.90))
+            x = avail.x() + (avail.width() - w) // 2
+            y = avail.y() + (avail.height() - h) // 2
+            self.setGeometry(x, y, w, h)
+            self._normal_geometry = QRect(x, y, w, h)
+        else:
+            self.resize(1366, 768)
 
     def showEvent(self, event):
         super().showEvent(event)
         if not getattr(self, '_initial_show_done', False):
             self._initial_show_done = True
-            screen = self.screen() or QApplication.primaryScreen()
-            avail = screen.availableGeometry() if screen else None
-            if avail:
-                self.setGeometry(avail)
-            self.showMaximized()
+            if hasattr(self, '_normal_geometry') and self._normal_geometry:
+                self.setGeometry(self._normal_geometry)
             if hasattr(self, 'btn_win_max'):
-                self.btn_win_max.setText("🗗")
-                self.btn_win_max.setToolTip("Restore Down")
+                self.btn_win_max.setText("🗖")
+                self.btn_win_max.setToolTip("Full Screen")
         if hasattr(self, 'viewport') and not getattr(self, '_manual_video_closed', False) and not getattr(self.viewport, '_is_playing_file', False):
             self.viewport.start_camera()
 
@@ -1021,7 +1025,9 @@ class CaptureWindow(QDialog):
     def mousePressEvent(self, event):
         """Enable dragging the frameless window when in restored/normal mode."""
         if not self.isFullScreen() and event.button() == Qt.LeftButton:
-            if hasattr(self, 'title_bar') and event.position().y() <= self.title_bar.height():
+            pos_y = event.position().y()
+            # Allow dragging from custom title bar (or top 38px of dialog)
+            if hasattr(self, 'title_bar') and pos_y <= (self.title_bar.height() + 4):
                 self._is_dragging = True
                 self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
                 event.accept()
@@ -1158,10 +1164,35 @@ class CaptureWindow(QDialog):
         """
         Sleek clinical title bar containing window title, live patient status,
         and window controls: Minimize (—), Full Screen/Restore (🗖/🗗), Close (✕).
+        Allows dragging anywhere on the title bar to move the dialog.
         """
         self.title_bar = QFrame()
         self.title_bar.setObjectName("captureTitleBar")
         self.title_bar.setFixedHeight(34)
+
+        # Connect mouse events directly on title_bar to allow seamless dragging
+        def _title_mouse_press(e):
+            if not self.isFullScreen() and e.button() == Qt.LeftButton:
+                self._is_dragging = True
+                self._drag_pos = e.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                e.accept()
+        def _title_mouse_move(e):
+            if self._is_dragging and (e.buttons() & Qt.LeftButton):
+                self.move(e.globalPosition().toPoint() - self._drag_pos)
+                e.accept()
+        def _title_mouse_release(e):
+            self._is_dragging = False
+            e.accept()
+        def _title_mouse_double_click(e):
+            if e.button() == Qt.LeftButton:
+                self._toggle_fullscreen()
+                e.accept()
+
+        self.title_bar.mousePressEvent = _title_mouse_press
+        self.title_bar.mouseMoveEvent = _title_mouse_move
+        self.title_bar.mouseReleaseEvent = _title_mouse_release
+        self.title_bar.mouseDoubleClickEvent = _title_mouse_double_click
+
         self.title_bar.setStyleSheet("""
             QFrame#captureTitleBar {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #25282C, stop:1 #16181B);
