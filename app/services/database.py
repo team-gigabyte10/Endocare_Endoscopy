@@ -173,6 +173,18 @@ class DatabaseService:
                     banner_path TEXT DEFAULT ''
                 );
             """)
+
+            # 8. Viewport Crop Frame Settings (normalized 2-point calibration)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS crop_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    enabled INTEGER DEFAULT 0,
+                    x1 REAL DEFAULT 0.048,
+                    y1 REAL DEFAULT 0.20,
+                    x2 REAL DEFAULT 0.73,
+                    y2 REAL DEFAULT 0.82
+                );
+            """)
             
             conn.commit()
 
@@ -659,4 +671,47 @@ class DatabaseService:
                 ),
             )
             conn.commit()
+
+    def get_crop_settings(self) -> Dict[str, Any]:
+        """Retrieves 2-point normalized crop frame settings (0.0 to 1.0)."""
+        defaults = {
+            "enabled": False,
+            "x1": 0.048,
+            "y1": 0.20,
+            "x2": 0.73,
+            "y2": 0.82,
+        }
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT enabled, x1, y1, x2, y2 FROM crop_settings WHERE id = 1;")
+            row = cur.fetchone()
+            if not row:
+                return defaults
+            return {
+                "enabled": bool(row[0]),
+                "x1": float(row[1]),
+                "y1": float(row[2]),
+                "x2": float(row[3]),
+                "y2": float(row[4]),
+            }
+
+    def save_crop_settings(self, enabled: bool, x1: float, y1: float, x2: float, y2: float) -> None:
+        """Persists 2-point normalized crop frame settings."""
+        with self._get_connection() as conn:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO crop_settings (id, enabled, x1, y1, x2, y2)
+                VALUES (1, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    enabled = excluded.enabled,
+                    x1 = excluded.x1,
+                    y1 = excluded.y1,
+                    x2 = excluded.x2,
+                    y2 = excluded.y2;
+                """,
+                (1 if enabled else 0, float(x1), float(y1), float(x2), float(y2))
+            )
+            conn.commit()
+
 

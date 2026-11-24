@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
 import ctypes
 import winsound
 
-from PySide6.QtCore import Qt, QTimer, QTime, QRect, QPoint, QSize, Signal, QThread, QEvent, QObject, QEventLoop
+from PySide6.QtCore import Qt, QTimer, QTime, QRect, QPoint, QPointF, QRectF, QSize, Signal, QThread, QEvent, QObject, QEventLoop
 from PySide6.QtGui import (
     QImage, QPixmap, QColor, QFont, QPainter, QPen, QBrush,
     QRadialGradient, QLinearGradient, QTextListFormat, QKeySequence,
@@ -242,6 +242,7 @@ class LiveVideoViewport(QLabel):
     """
     frame_captured = Signal(QImage)
     scope_middle_click_signal = Signal()
+    crop_points_changed = Signal(float, float, float, float)  # (x1, y1, x2, y2)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -250,6 +251,7 @@ class LiveVideoViewport(QLabel):
         self.setMinimumSize(480, 320)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setStyleSheet("background-color: #000000; border: none;")
+        self.setMouseTracking(True)
 
         self._assets_dir = get_asset_path()
         
@@ -268,6 +270,15 @@ class LiveVideoViewport(QLabel):
         self.filter_vision_x = False      # (F8) Vision X contrast/sharpness
         self.filter_crop_onthefly = False  # OnTheFly cropping (unchecked default)
         self.filter_invert_gray = False    # GrayScale-Pixels Inverter (unchecked default)
+
+        # 2-Point Normalized Crop Frame Coordinates (0.0 to 1.0 relative to video area)
+        self.crop_p1: Optional[QPointF] = QPointF(0.048, 0.20)
+        self.crop_p2: Optional[QPointF] = QPointF(0.73, 0.82)
+        self.is_setting_points = False
+        self.active_point_step = 0  # 0: inactive, 1: waiting for point 1, 2: waiting for point 2
+        self.hover_pos: Optional[QPoint] = None
+        self.dragging_point: Optional[int] = None  # 1 for p1, 2 for p2, None
+        self._last_video_rect = QRect()
 
         # Hardware feed state
         self._sim_tick = 0
@@ -302,16 +313,67 @@ class LiveVideoViewport(QLabel):
         self._render_timer = QTimer(self)
         self._render_timer.timeout.connect(self._on_tick)
 
+    def set_crop_points(self, x1: float, y1: float, x2: float, y2: float):
+        """Sets normalized crop coordinates (0.0 to 1.0)."""
+        self.crop_p1 = QPointF(min(max(0.0, x1), 1.0), min(max(0.0, y1), 1.0))
+        self.crop_p2 = QPointF(min(max(0.0, x2), 1.0), min(max(0.0, y2), 1.0))
+        self.update()
+
+    def start_point_selection(self):
+        """Activates interactive 2-point image frame selection."""
+        self.is_setting_points = True
+        self.active_point_step = 1
+        self.crop_p1 = None
+        self.crop_p2 = None
+        self.setCursor(Qt.CrossCursor)
+        self.show_osd("Select Point 1: Click Top-Left corner", 3000)
+        self.update()
+
+    def reset_crop_frame(self):
+        """Resets the crop frame back to full viewport / default markers."""
+        self.crop_p1 = QPointF(0.048, 0.20)
+        self.crop_p2 = QPointF(0.73, 0.82)
+        self.is_setting_points = False
+        self.active_point_step = 0
+        self.dragging_point = None
+        self.setCursor(Qt.ArrowCursor)
+        self.crop_points_changed.emit(0.048, 0.20, 0.73, 0.82)
+        self.show_osd("Frame Reset to Default", 1500)
+        self.update()
+
+    def _get_active_video_rect(self) -> QRect:
+        """Returns the QRect where video or standby content is rendered inside viewport."""
+        w, h = self.width(), self.height()
+        if self._latest_cv_frame is not None:
+            fh, fw = self._latest_cv_frame.shape[:2]
+        else:
+            fw, fh = 16, 9
+        # Calculate aspect-ratio fit rect
+        scale = min(w / max(1, fw), h / max(1, fh))
+        vw = int(fw * scale)
+        vh = int(fh * scale)
+        vx = (w - vw) // 2
+        vy = (h - vh) // 2
+        rect = QRect(vx, vy, vw, vh)
+        self._last_video_rect = rect
+        return rect
+
     def _apply_frame_adjustments(self, bgr_frame: np.ndarray) -> np.ndarray:
-        """Applies crop, video standard pedestal, invert, brightness, contrast, hue, and saturation."""
+        """Applies 2-point crop, video standard pedestal, invert, brightness, contrast, hue, and saturation."""
         frame = bgr_frame.copy()
 
-        if self.filter_crop_onthefly:
-            ch_h, ch_w = frame.shape[:2]
-            cy = int(ch_h * 0.04)
-            cx = int(ch_w * 0.04)
-            if cy > 0 and cx > 0:
-                frame = frame[cy:ch_h - cy, cx:ch_w - cx]
+        if self.filter_crop_onthefly and self.crop_p1 is not None and self.crop_p2 is not None:
+            fh, fw = frame.shape[:2]
+            x1 = int(min(self.crop_p1.x(), self.crop_p2.x()) * fw)
+            x2 = int(max(self.crop_p1.x(), self.crop_p2.x()) * fw)
+            y1 = int(min(self.crop_p1.y(), self.crop_p2.y()) * fh)
+            y2 = int(max(self.crop_p1.y(), self.crop_p2.y()) * fh)
+            x1 = max(0, min(fw - 1, x1))
+            x2 = max(0, min(fw, x2))
+            y1 = max(0, min(fh - 1, y1))
+            y2 = max(0, min(fh, y2))
+            if (x2 - x1) >= 20 and (y2 - y1) >= 20:
+                frame = frame[y1:y2, x1:x2]
 
         if "7.5 IRE" in self.video_standard:
             # 7.5 IRE NTSC setup pedestal lift (maps [0..255] -> [16..255])
@@ -449,13 +511,133 @@ class LiveVideoViewport(QLabel):
         self._osd_text = ""
         self.update()
 
+    def _pos_to_normalized(self, pos: QPoint) -> QPointF:
+        """Converts widget pixel position to normalized 0.0-1.0 coordinate inside video rect."""
+        v_rect = self._get_active_video_rect()
+        nx = (pos.x() - v_rect.x()) / max(1.0, float(v_rect.width()))
+        ny = (pos.y() - v_rect.y()) / max(1.0, float(v_rect.height()))
+        return QPointF(min(max(0.0, nx), 1.0), min(max(0.0, ny), 1.0))
+
+    def _normalized_to_pos(self, pt: QPointF) -> QPoint:
+        """Converts normalized 0.0-1.0 coordinate to widget pixel position."""
+        v_rect = self._get_active_video_rect()
+        px = int(v_rect.x() + pt.x() * v_rect.width())
+        py = int(v_rect.y() + pt.y() * v_rect.height())
+        return QPoint(px, py)
+
     def mousePressEvent(self, event):
-        """Intercepts direct middle click on the live video viewport."""
+        """Handles 2-point image frame selection, corner dragging, right-click reset, and middle click."""
         if event.button() == Qt.MiddleButton:
             self.scope_middle_click_signal.emit()
             event.accept()
             return
+
+        if event.button() == Qt.RightButton:
+            # Right click cancels active point selection or opens quick reset menu
+            if self.is_setting_points:
+                self.is_setting_points = False
+                self.active_point_step = 0
+                self.setCursor(Qt.ArrowCursor)
+                self.show_osd("Point selection cancelled", 1500)
+                self.update()
+                event.accept()
+                return
+
+        if event.button() == Qt.LeftButton:
+            pos = event.position().toPoint()
+            norm_pt = self._pos_to_normalized(pos)
+
+            if self.is_setting_points:
+                if self.active_point_step == 1:
+                    # Set Point 1 (Top-Left corner)
+                    self.crop_p1 = norm_pt
+                    self.active_point_step = 2
+                    self.show_osd("Point 1 Set. Click Point 2 (Bottom-Right corner)", 3000)
+                    self.update()
+                    event.accept()
+                    return
+                elif self.active_point_step == 2:
+                    # Set Point 2 (Bottom-Right corner)
+                    self.crop_p2 = norm_pt
+                    self.active_point_step = 0
+                    self.is_setting_points = False
+                    self.setCursor(Qt.ArrowCursor)
+                    x1 = min(self.crop_p1.x(), self.crop_p2.x())
+                    y1 = min(self.crop_p1.y(), self.crop_p2.y())
+                    x2 = max(self.crop_p1.x(), self.crop_p2.x())
+                    y2 = max(self.crop_p1.y(), self.crop_p2.y())
+                    self.crop_p1 = QPointF(x1, y1)
+                    self.crop_p2 = QPointF(x2, y2)
+                    self.crop_points_changed.emit(x1, y1, x2, y2)
+                    self.show_osd("Image Frame Selected & Saved", 2000)
+                    self.update()
+                    event.accept()
+                    return
+
+            # Check if user clicked near existing P1 or P2 to drag
+            if self.crop_p1 and self.crop_p2 and not self.filter_crop_onthefly:
+                p1_px = self._normalized_to_pos(self.crop_p1)
+                p2_px = self._normalized_to_pos(self.crop_p2)
+                d1 = (pos - p1_px).manhattanLength()
+                d2 = (pos - p2_px).manhattanLength()
+                if d1 <= 15:
+                    self.dragging_point = 1
+                    event.accept()
+                    return
+                elif d2 <= 15:
+                    self.dragging_point = 2
+                    event.accept()
+                    return
+
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        pos = event.position().toPoint()
+        self.hover_pos = pos
+
+        if self.is_setting_points:
+            self.setCursor(Qt.CrossCursor)
+            self.update()
+            event.accept()
+            return
+
+        if self.dragging_point in (1, 2):
+            norm_pt = self._pos_to_normalized(pos)
+            if self.dragging_point == 1:
+                self.crop_p1 = norm_pt
+            else:
+                self.crop_p2 = norm_pt
+            self.update()
+            event.accept()
+            return
+
+        # Cursor cue when hovering near handles
+        if self.crop_p1 and self.crop_p2 and not self.filter_crop_onthefly:
+            p1_px = self._normalized_to_pos(self.crop_p1)
+            p2_px = self._normalized_to_pos(self.crop_p2)
+            if (pos - p1_px).manhattanLength() <= 12 or (pos - p2_px).manhattanLength() <= 12:
+                self.setCursor(Qt.SizeFDiagCursor)
+            else:
+                self.setCursor(Qt.ArrowCursor)
+
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton and self.dragging_point is not None:
+            self.dragging_point = None
+            if self.crop_p1 and self.crop_p2:
+                x1 = min(self.crop_p1.x(), self.crop_p2.x())
+                y1 = min(self.crop_p1.y(), self.crop_p2.y())
+                x2 = max(self.crop_p1.x(), self.crop_p2.x())
+                y2 = max(self.crop_p1.y(), self.crop_p2.y())
+                self.crop_p1 = QPointF(x1, y1)
+                self.crop_p2 = QPointF(x2, y2)
+                self.crop_points_changed.emit(x1, y1, x2, y2)
+            self.setCursor(Qt.ArrowCursor)
+            self.update()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def _decay_flash(self):
         self._flash_opacity -= 0.14
@@ -572,14 +754,61 @@ class LiveVideoViewport(QLabel):
         if self.filter_vision_x:
             painter.fillRect(0, 0, w, h, QColor(20, 170, 245, 45))
 
-        # 4. Authentic Green Tracking Markers from Screenshot 003705.png
-        # Marker 1 (upper-left region)
-        marker1_y = int(h * 0.20)
-        painter.fillRect(int(w * 0.048), marker1_y, 4, 4, QColor("#00FF66"))
+        # 4. Interactive 2-Point Frame Selection Overlay & Corner Markers
+        v_rect = self._get_active_video_rect()
 
-        # Marker 2 (mid-lower region)
-        marker2_y = int(h * 0.62)
-        painter.fillRect(int(w * 0.27), marker2_y, 4, 4, QColor("#00FF66"))
+        if self.is_setting_points:
+            # Active point picking overlay
+            painter.save()
+            painter.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            if self.active_point_step == 1:
+                # Instruction HUD
+                painter.setPen(QColor("#00FF66"))
+                painter.drawText(v_rect.x() + 20, v_rect.y() + 40, "👉 CLICK 1: Set Top-Left Corner (Point 1)")
+                if self.hover_pos:
+                    # Crosshairs following cursor
+                    painter.setPen(QPen(QColor(0, 255, 102, 160), 1, Qt.DashLine))
+                    painter.drawLine(v_rect.x(), self.hover_pos.y(), v_rect.right(), self.hover_pos.y())
+                    painter.drawLine(self.hover_pos.x(), v_rect.y(), self.hover_pos.x(), v_rect.bottom())
+            elif self.active_point_step == 2 and self.crop_p1:
+                p1_px = self._normalized_to_pos(self.crop_p1)
+                # Draw P1 marker
+                painter.fillRect(p1_px.x() - 4, p1_px.y() - 4, 8, 8, QColor("#00FF66"))
+                painter.setPen(QColor("#00FF66"))
+                painter.drawText(p1_px.x() + 8, p1_px.y() - 6, "P1 (Top-Left)")
+                painter.drawText(v_rect.x() + 20, v_rect.y() + 40, "👉 CLICK 2: Set Bottom-Right Corner (Point 2)")
+
+                # Rubber-band rectangle to current mouse hover
+                if self.hover_pos:
+                    hx, hy = self.hover_pos.x(), self.hover_pos.y()
+                    rx = min(p1_px.x(), hx)
+                    ry = min(p1_px.y(), hy)
+                    rw = abs(hx - p1_px.x())
+                    rh = abs(hy - p1_px.y())
+                    painter.setPen(QPen(QColor(0, 255, 102, 220), 1.5, Qt.DashLine))
+                    painter.setBrush(QBrush(QColor(0, 255, 102, 25)))
+                    painter.drawRect(rx, ry, rw, rh)
+            painter.restore()
+        elif not self.filter_crop_onthefly and self.crop_p1 is not None and self.crop_p2 is not None:
+            # When cropping is not actively zooming, show the calibrated 2 green point markers & frame
+            p1_px = self._normalized_to_pos(self.crop_p1)
+            p2_px = self._normalized_to_pos(self.crop_p2)
+            
+            rx = min(p1_px.x(), p2_px.x())
+            ry = min(p1_px.y(), p2_px.y())
+            rw = abs(p2_px.x() - p1_px.x())
+            rh = abs(p2_px.y() - p1_px.y())
+
+            # Draw medical green markers (Screenshot 003705.png authentic corner markers)
+            painter.fillRect(p1_px.x() - 3, p1_px.y() - 3, 6, 6, QColor("#00FF66"))
+            painter.fillRect(p2_px.x() - 3, p2_px.y() - 3, 6, 6, QColor("#00FF66"))
+
+            # Clean subtle frame outline so user clearly sees the defined image frame
+            painter.save()
+            painter.setPen(QPen(QColor(0, 255, 102, 140), 1, Qt.DashLine))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(rx, ry, rw, rh)
+            painter.restore()
 
         # 5. Top Left & Top Right Live HUD
         # Top-left HUD: Patient ID, Name, Date, Time
@@ -1060,13 +1289,62 @@ class CaptureWindow(QDialog):
         top_lay.setContentsMargins(8, 4, 8, 4)
         top_lay.setSpacing(10)
 
-        # === Group A: 3 Checkboxes ===
+        # === Group A: 3 Checkboxes & 2-Point Frame Selection ===
         chk_box = QVBoxLayout()
         chk_box.setSpacing(2)
         chk_box.setAlignment(Qt.AlignVCenter)
+
+        crop_row = QHBoxLayout()
+        crop_row.setSpacing(4)
         self.chk_crop = QCheckBox("OnTheFly Image Cropping")
         self.chk_crop.setChecked(False)
         self.chk_crop.toggled.connect(self._sync_filters)
+        crop_row.addWidget(self.chk_crop)
+
+        self.btn_set_frame = QPushButton("Select 2 Points")
+        self.btn_set_frame.setToolTip("Click to select Top-Left Point 1 and Bottom-Right Point 2 to set image frame")
+        self.btn_set_frame.setCursor(Qt.PointingHandCursor)
+        self.btn_set_frame.setFixedHeight(18)
+        self.btn_set_frame.setStyleSheet("""
+            QPushButton {
+                background: #1E293B;
+                color: #00FF66;
+                font-size: 10px;
+                font-weight: 700;
+                border: 1px solid #10B981;
+                border-radius: 3px;
+                padding: 1px 6px;
+            }
+            QPushButton:hover {
+                background: #10B981;
+                color: #000000;
+            }
+        """)
+        self.btn_set_frame.clicked.connect(self._start_frame_selection)
+        crop_row.addWidget(self.btn_set_frame)
+
+        self.btn_reset_frame = QPushButton("↺")
+        self.btn_reset_frame.setToolTip("Reset image frame to default")
+        self.btn_reset_frame.setCursor(Qt.PointingHandCursor)
+        self.btn_reset_frame.setFixedSize(18, 18)
+        self.btn_reset_frame.setStyleSheet("""
+            QPushButton {
+                background: #1E293B;
+                color: #CBD5E1;
+                font-size: 11px;
+                font-weight: bold;
+                border: 1px solid #475569;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background: #334155;
+                color: #FFFFFF;
+            }
+        """)
+        self.btn_reset_frame.clicked.connect(self._reset_frame_selection)
+        crop_row.addWidget(self.btn_reset_frame)
+
+        chk_box.addLayout(crop_row)
 
         self.chk_invert = QCheckBox("GrayScale-Pixels Inverter")
         self.chk_invert.setChecked(False)
@@ -1076,7 +1354,6 @@ class CaptureWindow(QDialog):
         self.chk_auto_capture.setChecked(False)
         self.chk_auto_capture.toggled.connect(self._toggle_auto_capture)
 
-        chk_box.addWidget(self.chk_crop)
         chk_box.addWidget(self.chk_invert)
         chk_box.addWidget(self.chk_auto_capture)
         top_lay.addLayout(chk_box)
@@ -1462,6 +1739,15 @@ class CaptureWindow(QDialog):
         self.viewport = LiveVideoViewport(self)
         self.viewport.set_patient_info(self.patient_data)
         
+        # Load saved crop frame settings from database
+        try:
+            crop_cfg = self.db.get_crop_settings()
+            self.viewport.set_crop_points(crop_cfg["x1"], crop_cfg["y1"], crop_cfg["x2"], crop_cfg["y2"])
+            self.chk_crop.setChecked(crop_cfg.get("enabled", False))
+        except Exception:
+            pass
+
+        self.viewport.crop_points_changed.connect(self._on_crop_points_changed)
         self.viewport.setContextMenuPolicy(Qt.CustomContextMenu)
         self.viewport.customContextMenuRequested.connect(self._show_viewport_menu)
 
@@ -1883,9 +2169,31 @@ class CaptureWindow(QDialog):
 
     def _show_viewport_menu(self, pos):
         menu = QMenu(self)
+        action_select = menu.addAction("Select Image Frame (2 Points)")
+        action_select.triggered.connect(self._start_frame_selection)
+        action_reset = menu.addAction("Reset Frame to Default")
+        action_reset.triggered.connect(self._reset_frame_selection)
+        menu.addSeparator()
         action_fs = menu.addAction("Toggle Full Screen Preview (F11)")
         action_fs.triggered.connect(self._toggle_fullscreen)
         menu.exec(self.viewport.mapToGlobal(pos))
+
+    def _start_frame_selection(self):
+        """Starts 2-point corner frame selection mode on the live viewport."""
+        if hasattr(self, 'viewport'):
+            self.viewport.start_point_selection()
+
+    def _reset_frame_selection(self):
+        """Resets 2-point crop coordinates back to default and updates database."""
+        if hasattr(self, 'viewport'):
+            self.viewport.reset_crop_frame()
+
+    def _on_crop_points_changed(self, x1: float, y1: float, x2: float, y2: float):
+        """Persists newly selected crop points to SQLite."""
+        try:
+            self.db.save_crop_settings(self.chk_crop.isChecked(), x1, y1, x2, y2)
+        except Exception:
+            pass
 
     # =========================================================================
     # ACTIONS & WORKFLOW LOGIC
@@ -1923,12 +2231,24 @@ class CaptureWindow(QDialog):
         self.viewport.set_adjustments(b, c, h, s)
 
     def _sync_filters(self):
+        crop_on = self.chk_crop.isChecked()
         self.viewport.set_filters(
             vessel_plus=self.btn_vessel.isChecked(),
             vision_x=self.btn_vision.isChecked(),
-            crop=self.chk_crop.isChecked(),
+            crop=crop_on,
             invert_gray=self.chk_invert.isChecked()
         )
+        try:
+            if hasattr(self, 'viewport') and self.viewport.crop_p1 and self.viewport.crop_p2:
+                self.db.save_crop_settings(
+                    crop_on,
+                    self.viewport.crop_p1.x(),
+                    self.viewport.crop_p1.y(),
+                    self.viewport.crop_p2.x(),
+                    self.viewport.crop_p2.y()
+                )
+        except Exception:
+            pass
 
     def _toggle_vessel_plus(self):
         if self.sender() != self.btn_vessel:
